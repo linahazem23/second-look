@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Second Look</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --rose:#D4638A;
+    --rose-dark:#C6597A;
+    --rose-soft:#F6D9E3;
+    --blush:#FBEEF2;
+    --card:#FFFFFF;
+    --ink:#5A2E3D;
+    --ink-light:#8A5B6B;
+    --ink-faint:#C6A3B0;
+    --line:#F0D3DE;
+    --white:#FFF6F9;
+    --olive:#8C8A5E;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:'Karla',sans-serif;
+    background:#E9DCE0;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,p,ul{margin:0;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  #phone{
+    max-width:430px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--blush);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 0 40px rgba(90,46,61,0.12);
+  }
+  @media (min-width:431px){
+    body{padding:24px 0;}
+    #phone{min-height:calc(100vh - 48px);border-radius:28px;overflow:hidden;}
+  }
+
+  .icon{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block;}
+
+  /* ---------- Header ---------- */
+  header.topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 18px;
+    border-bottom:0.5px solid var(--line);
+    background:var(--blush);
+    position:sticky;top:0;z-index:5;
+  }
+  header.topbar .logo{font-family:'Fraunces',serif;font-size:19px;font-weight:600;color:var(--ink);}
+  header.topbar .menu-btn{
+    width:32px;height:32px;border-radius:50%;border:none;
+    background:var(--rose-soft);display:flex;align-items:center;justify-content:center;color:var(--rose-dark);
+  }
+
+  /* ---------- Bottom nav ---------- */
+  nav.bottom-nav{
+    display:flex;
+    border-top:0.5px solid var(--line);
+    background:var(--card);
+    position:sticky;bottom:0;z-index:5;
+  }
+  nav.bottom-nav button{
+    flex:1;background:none;border:none;padding:10px 4px 12px;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--ink-faint);
+  }
+  nav.bottom-nav button.active{color:var(--rose-dark);}
+  nav.bottom-nav button span{font-size:10.5px;}
+
+  main{flex:1;overflow-y:auto;padding-bottom:8px;}
+
+  /* ---------- Section header ---------- */
+  .section-head{padding:20px 18px 4px;}
+  .section-head h1{font-family:'Fraunces',serif;font-size:22px;font-weight:500;color:var(--ink);}
+  .section-head p{font-size:12.5px;color:var(--ink-light);margin-top:4px;}
+
+  /* ---------- Category toggle ---------- */
+  .cat-toggle{display:flex;gap:8px;padding:14px 18px 4px;}
+  .cat-toggle button{
+    flex:1;padding:9px 0;border-radius:20px;border:0.5px solid var(--line);
+    background:var(--card);color:var(--ink-light);font-size:13px;font-weight:500;
+  }
+  .cat-toggle button.active{background:var(--rose);color:var(--white);border-color:var(--rose);}
+
+  /* ---------- Listing grid ---------- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 18px 20px;}
+  .listing-card{background:var(--card);border:0.5px solid var(--line);border-radius:10px;overflow:hidden;}
+  .listing-card .thumb{
+    height:104px;display:flex;align-items:center;justify-content:center;
+    background:var(--white);color:var(--rose-dark);
+  }
+  .listing-card.beauty .thumb{border-radius:0 0 0 0;}
+  .listing-card.beauty{border-radius:56px 56px 8px 8px;}
+  .listing-card.beauty .thumb{border-radius:52px 52px 4px 4px;}
+  .listing-card .info{padding:9px 11px 12px;}
+  .listing-card .name{font-family:'Fraunces',serif;font-size:13.5px;color:var(--ink);}
+  .listing-card .price{font-size:13px;color:var(--rose-dark);font-weight:700;margin-top:2px;}
+  .listing-card .meta{font-size:10.5px;color:var(--ink-light);margin-top:5px;line-height:1.5;}
+  .match-badge{
+    display:inline-block;margin-top:6px;font-size:10px;color:var(--olive);
+    background:#EFEFDE;padding:2px 8px;border-radius:10px;
+  }
+
+  /* ---------- Generic card / list ---------- */
+  .plain-card{background:var(--card);border:0.5px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 18px 12px;}
+  .plain-card h3{font-family:'Fraunces',serif;font-size:14.5px;color:var(--ink);font-weight:500;}
+  .plain-card .sub{font-size:12px;color:var(--ink-light);margin-top:3px;}
+  .plain-card .row{display:flex;gap:8px;margin-top:11px;}
+
+  .btn-outline{
+    border:0.5px solid var(--rose);color:var(--rose-dark);background:none;
+    font-size:12px;font-weight:500;padding:7px 13px;border-radius:16px;
+  }
+  .btn-outline.done{border-color:var(--olive);color:var(--olive);}
+  .btn-solid{
+    position:relative;overflow:hidden;border:none;color:var(--white);background:var(--rose);
+    font-size:12.5px;font-weight:500;padding:9px 18px;border-radius:20px;
+  }
+  .btn-solid .shine{position:absolute;top:2px;left:6px;right:6px;height:38%;background:rgba(255,255,255,0.22);border-radius:14px;}
+  .btn-solid span.label{position:relative;}
+  .btn-solid:disabled{opacity:0.55;}
+
+  textarea.comment-box{
+    width:100%;margin-top:10px;border:0.5px solid var(--line);border-radius:8px;
+    padding:8px 10px;font-size:12.5px;color:var(--ink);resize:none;background:var(--white);
+  }
+  .comment-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .comment-list .c{font-size:12px;color:var(--ink-light);background:var(--white);border-radius:8px;padding:6px 10px;}
+
+  .fab{
+    position:fixed;
+  }
+  .post-btn-wrap{padding:2px 18px 16px;}
+  .post-toggle{
+    width:100%;position:relative;overflow:hidden;background:var(--rose);color:var(--white);border:none;
+    padding:12px;border-radius:22px;font-size:13.5px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;
+  }
+
+  .post-form{margin:0 18px 16px;background:var(--card);border:0.5px solid var(--line);border-radius:10px;padding:14px 16px;}
+  .post-form label{font-size:11.5px;color:var(--ink-light);display:block;margin:10px 0 4px;}
+  .post-form label:first-child{margin-top:0;}
+  .post-form input, .post-form select, .post-form textarea{
+    width:100%;border:0.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--white);color:var(--ink);
+  }
+  .post-form textarea{resize:none;}
+  .post-form .form-row{display:flex;gap:16px;margin-top:14px;}
+  .post-form .form-row button{flex:1;}
+  .btn-cancel{background:none;border:0.5px solid var(--line);color:var(--ink-light);padding:9px;border-radius:20px;font-size:12.5px;}
+
+  /* ---------- Divider ---------- */
+  .stitch{
+    height:1px;margin:22px 18px 14px;
+    background-image:repeating-linear-gradient(90deg,var(--rose) 0,var(--rose) 4px,transparent 4px,transparent 9px);
+  }
+
+  /* ---------- Explore ---------- */
+  .view-toggle{display:flex;gap:6px;padding:12px 18px 4px;}
+  .view-toggle button{padding:6px 14px;border-radius:14px;border:0.5px solid var(--line);background:var(--card);font-size:12px;color:var(--ink-light);}
+  .view-toggle button.active{background:var(--ink);color:var(--white);border-color:var(--ink);}
+  .map-wrap{margin:14px 18px;height:230px;border-radius:14px;background:linear-gradient(180deg,#F6E5EA,#F0D8E0);position:relative;border:0.5px solid var(--line);overflow:hidden;}
+  .pin{position:absolute;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);}
+  .pin .dot{width:30px;height:30px;border-radius:50% 50% 50% 0;background:var(--rose);transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;}
+  .pin .dot span{transform:rotate(45deg);color:var(--white);font-size:11px;font-weight:700;}
+  .pin .label{font-size:10.5px;color:var(--ink);margin-top:2px;background:var(--white);padding:1px 6px;border-radius:6px;}
+  .area-row{
+    display:flex;justify-content:space-between;align-items:center;
+    background:var(--card);border:0.5px solid var(--line);border-radius:10px;
+    padding:12px 16px;margin:0 18px 10px;
+  }
+  .area-row .count{font-size:12px;color:var(--rose-dark);background:var(--rose-soft);padding:2px 9px;border-radius:10px;}
+
+  /* ---------- Chat list ---------- */
+  .thread-row{display:flex;gap:11px;align-items:center;padding:12px 18px;border-bottom:0.5px solid var(--line);background:var(--card);}
+  .avatar{width:38px;height:38px;border-radius:50%;background:var(--rose-soft);display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:13px;color:var(--rose-dark);flex-shrink:0;}
+  .thread-row .t-name{font-family:'Fraunces',serif;font-size:14px;color:var(--ink);}
+  .thread-row .t-sub{font-size:11.5px;color:var(--ink-light);margin-top:2px;}
+
+  /* ---------- Chat thread ---------- */
+  #chat-thread{display:flex;flex-direction:column;height:100%;}
+  .thread-header{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:0.5px solid var(--line);}
+  .thread-header button{background:none;border:none;color:var(--ink-light);}
+  .mod-banner{display:flex;align-items:center;gap:6px;padding:7px 16px;background:var(--rose-soft);font-size:10.5px;color:#A8536E;}
+  .messages{flex:1;padding:16px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;}
+  .bubble{max-width:72%;padding:9px 13px;font-size:13px;border-radius:14px;line-height:1.4;}
+  .bubble.them{align-self:flex-start;background:var(--card);border:0.5px solid var(--line);border-bottom-left-radius:4px;color:var(--ink);}
+  .bubble.me{align-self:flex-end;background:var(--rose);border-bottom-right-radius:4px;color:var(--white);}
+  .composer{display:flex;align-items:center;gap:8px;padding:11px 14px;border-top:0.5px solid var(--line);background:var(--blush);}
+  .composer .flag-btn{width:30px;height:30px;border-radius:50%;border:0.5px solid var(--line);background:none;color:var(--ink-light);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .composer input{flex:1;border:0.5px solid var(--line);border-radius:20px;padding:9px 14px;font-size:13px;background:var(--card);}
+  .composer .send-btn{width:34px;height:34px;border-radius:50%;background:var(--rose);border:none;color:var(--white);display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative;overflow:hidden;}
+
+  /* ---------- Side menu ---------- */
+  #side-menu{
+    position:absolute;inset:0;background:rgba(90,46,61,0.28);z-index:20;display:none;
+  }
+  #side-menu.open{display:block;}
+  #side-menu .panel{
+    position:absolute;top:0;right:0;bottom:0;width:78%;max-width:300px;background:var(--blush);
+    padding:22px 20px;display:flex;flex-direction:column;gap:2px;
+  }
+  #side-menu .panel h2{font-family:'Fraunces',serif;font-size:17px;margin-bottom:14px;}
+  #side-menu .item{
+    display:flex;align-items:center;gap:11px;padding:12px 4px;border-bottom:0.5px solid var(--line);
+    color:var(--ink);font-size:13.5px;background:none;border-left:none;border-right:none;border-top:none;text-align:left;width:100%;
+  }
+  #side-menu .close-x{position:absolute;top:20px;left:-42px;width:32px;height:32px;border-radius:50%;background:var(--card);border:none;display:flex;align-items:center;justify-content:center;color:var(--ink);}
+
+  /* ---------- Reviews ---------- */
+  .review-card{margin:0 18px 12px;background:var(--card);border:0.5px solid var(--line);border-radius:10px;padding:14px 16px;}
+  .review-card .stars{color:var(--rose-dark);font-size:12px;letter-spacing:2px;}
+  .review-photos{display:flex;gap:8px;margin:10px 0;}
+  .review-photos div{flex:1;height:60px;background:var(--white);border:0.5px solid var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-faint);}
+  .verified-tag{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--olive);margin-top:8px;}
+
+  /* ================= ONBOARDING ================= */
+  #onboarding{position:absolute;inset:0;background:var(--blush);z-index:30;display:flex;flex-direction:column;}
+  .ob-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:32px 26px;}
+  .ob-dots{display:flex;gap:4px;padding:18px 26px 0;}
+  .ob-dots div{height:4px;flex:1;border-radius:2px;background:var(--line);}
+  .ob-dots div.on{background:var(--rose);}
+  .ob-body h1{font-family:'Fraunces',serif;font-size:26px;font-weight:500;line-height:1.25;color:var(--ink);}
+  .ob-body p.lead{font-size:13.5px;color:var(--ink-light);margin-top:10px;line-height:1.6;max-width:32ch;}
+  .ob-options{display:flex;flex-direction:column;gap:9px;margin-top:26px;}
+  .ob-options button{
+    text-align:left;padding:13px 15px;border-radius:10px;border:0.5px solid var(--line);background:var(--card);
+    font-size:13.5px;color:var(--ink);
+  }
+  .ob-options button.picked{border-color:var(--rose);background:var(--white);color:var(--rose-dark);font-weight:700;}
+  .ob-icon-circle{width:46px;height:46px;border-radius:50%;background:var(--rose-soft);display:flex;align-items:center;justify-content:center;color:var(--rose-dark);margin-bottom:16px;}
+  .ob-icon-circle.warn{background:#F3DCC9;color:#B5654A;}
+  .ob-agree{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink-light);margin-top:22px;}
+  .ob-footer{padding:16px 26px 26px;}
+  .ob-footer button{width:100%;position:relative;overflow:hidden;background:var(--rose);color:var(--white);border:none;padding:13px;border-radius:22px;font-size:14px;font-weight:500;}
+  .ob-footer button:disabled{opacity:0.5;}
+  .ob-err{font-size:11.5px;color:#B5423B;margin-top:8px;display:none;}
+</style>
+</head>
+<body>
+
+<div id="phone">
+
+  <!-- ===================== ONBOARDING ===================== -->
+  <div id="onboarding"></div>
+
+  <!-- ===================== MAIN APP ===================== -->
+  <div id="main-app" style="display:none;flex-direction:column;height:100%;min-height:100vh;">
+    <header class="topbar">
+      <span class="logo">Second Look</span>
+      <button class="menu-btn" onclick="openMenu()">
+        <svg class="icon" viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
+    </header>
+
+    <main id="content"></main>
+
+    <nav class="bottom-nav">
+      <button data-tab="home" onclick="setTab('home')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/></svg>
+        <span>Home</span>
+      </button>
+      <button data-tab="want" onclick="setTab('want')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9.5-8.8C.8 7.8 2.6 4 6.2 4c2 0 3.4 1 4 2.3.6-1.3 2-2.3 4-2.3 3.6 0 5.4 3.8 3.7 7.2C19 15.6 12 20 12 20Z"/></svg>
+        <span>Want</span>
+      </button>
+      <button data-tab="demand" onclick="setTab('demand')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>
+        <span>Demand</span>
+      </button>
+      <button data-tab="explore" onclick="setTab('explore')">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="10" r="3"/><path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21Z"/></svg>
+        <span>Explore</span>
+      </button>
+      <button data-tab="chat" onclick="setTab('chat')">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 12a8 8 0 1 1-3.2-6.4"/><path d="M21 4v6h-6" transform="rotate(0)"/></svg>
+        <span>Chat</span>
+      </button>
+    </nav>
+
+    <div id="side-menu">
+      <div class="panel">
+        <button class="close-x" onclick="closeMenu()">
+          <svg class="icon" width="16" height="16" viewBox="0 0 24 24"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+        </button>
+        <h2>Menu</h2>
+        <button class="item" onclick="setTab('reviews');closeMenu()">Reviews</button>
+        <button class="item" onclick="setTab('profile');closeMenu()">My profile</button>
+        <button class="item" onclick="setTab('guidelines');closeMenu()">Community guidelines</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- ICONS ---------------- */
+const ICON = {
+  flask:'<path d="M9 3h6"/><path d="M10 3v6l-5.5 9a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3"/>',
+  dress:'<path d="M9 3h6l1 4-3 2 4 12H7l4-12-3-2 1-4Z"/>',
+  flag:'<path d="M5 3v18"/><path d="M5 4h11l-2 4 2 4H5"/>',
+  send:'<path d="M4 11 20 4l-6 16-3-7-7-2Z"/>',
+  chevron:'<polyline points="7 10 12 15 17 10"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  arrowLeft:'<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  star:'★'
+};
+function svg(name,size=18){return `<svg class="icon" style="width:${size}px;height:${size}px" viewBox="0 0 24 24">${ICON[name]}</svg>`;}
+
+/* ---------------- STATE ---------------- */
+let state = {
+  onboardingStep: 'welcome', // welcome -> skin -> size -> hair -> guide1..4 -> done
+  guideAgreed: [false,false,false,false],
+  profile: { skin:null, size:null, hair:null },
+  tab: 'home',
+  category: 'beauty',
+  showWantForm: false,
+  wants: [
+    {item:'Rose clay face mask', note:'Unopened, gifted twice', area:'Zamalek'},
+  ],
+  demandOffered: {},
+  demandComments: {0:[], 1:[]},
+  demandOpenComment: null,
+  exploreView: 'map',
+  openArea: null,
+  activeChat: null,
+};
+
+const AREAS = [
+  {name:'Nasr City', count:18, x:'62%', y:'40%'},
+  {name:'Heliopolis', count:12, x:'70%', y:'22%'},
+  {name:'Maadi', count:9, x:'50%', y:'68%'},
+  {name:'Zamalek', count:4, x:'34%', y:'46%'},
+];
+
+const LISTINGS = {
+  beauty:[
+    {name:'Curly hair mask', price:'120 EGP', reason:'Switched routines', used:'Used twice', match:'Matches your curly hair'},
+    {name:'Rose clay mask', price:'85 EGP', reason:'Gifted, unopened', used:'Never used', match:null},
+    {name:'Vitamin C serum', price:'260 EGP', reason:'Too strong for me', used:'Used 3 times', match:'Matches your dry skin'},
+    {name:'Setting powder', price:'150 EGP', reason:'Wrong shade', used:'Used once', match:null},
+  ],
+  clothes:[
+    {name:'Linen midi dress', price:'340 EGP', reason:'Didn\u2019t fit', used:'Worn once', match:'Matches your size M'},
+    {name:'Denim jacket', price:'420 EGP', reason:'Changed style', used:'Worn twice', match:null},
+    {name:'Silk scarf', price:'180 EGP', reason:'Duplicate gift', used:'Never worn', match:null},
+    {name:'Knit cardigan', price:'260 EGP', reason:'Too small', used:'Worn once', match:'Matches your size M'},
+  ]
+};
+
+const THREADS = [
+  {name:'Nourhan', sub:'Curly hair mask, used twice', initials:'NR'},
+  {name:'Salma', sub:'Linen midi dress', initials:'SL'},
+];
+
+const CHAT_MESSAGES = [
+  {who:'them', text:'Hi, is the hair mask still available'},
+  {who:'me', text:'Yes, still have it, barely used'},
+  {who:'me', text:'Can meet in Heliopolis this week'},
+  {who:'them', text:'Perfect, does Thursday work'},
+];
+
+/* ================= ONBOARDING ================= */
+function renderOnboarding(){
+  const el = document.getElementById('onboarding');
+  const steps = ['welcome','skin','size','hair','guide1','guide2','guide3','guide4'];
+  const idx = steps.indexOf(state.onboardingStep);
+  const dotsTotal = 7; // skin..guide4
+  const dotIdx = idx; // 0 = welcome (no dots progress shown yet)
+
+  let dots = '';
+  if(state.onboardingStep !== 'welcome'){
+    dots = '<div class="ob-dots">';
+    for(let i=1;i<steps.length;i++){ dots += `<div class="${i<=idx?'on':''}"></div>`; }
+    dots += '</div>';
+  }
+
+  let body = '';
+
+  if(state.onboardingStep === 'welcome'){
+    body = `
+      <div class="ob-body">
+        <div class="ob-icon-circle">${svg('flask',22)}</div>
+        <h1>Welcome to Second Look</h1>
+        <p class="lead">A women-only marketplace for beauty and clothes. Let's set up a few things before you start.</p>
+      </div>
+      <div class="ob-footer"><button onclick="obNext('skin')"><span>Get started</span></button></div>`;
+  }
+  else if(state.onboardingStep === 'skin'){
+    body = `
+      <div class="ob-body">
+        <p style="font-size:12px;color:var(--ink-light);">Step 1 of 3</p>
+        <h1 style="margin-top:6px;">What's your skin type?</h1>
+        <p class="lead">So beauty matches actually fit you.</p>
+        <div class="ob-options">
+          ${['Dry','Oily','Combination','Sensitive'].map(o=>`<button class="${state.profile.skin===o?'picked':''}" onclick="pickProfile('skin','${o}')">${o}</button>`).join('')}
+        </div>
+      </div>
+      <div class="ob-footer"><button ${!state.profile.skin?'disabled':''} onclick="obNext('size')"><span>Continue</span></button></div>`;
+  }
+  else if(state.onboardingStep === 'size'){
+    body = `
+      <div class="ob-body">
+        <p style="font-size:12px;color:var(--ink-light);">Step 2 of 3</p>
+        <h1 style="margin-top:6px;">What's your clothing size?</h1>
+        <div class="ob-options">
+          ${['XS','S','M','L','XL'].map(o=>`<button class="${state.profile.size===o?'picked':''}" onclick="pickProfile('size','${o}')">${o}</button>`).join('')}
+        </div>
+      </div>
+      <div class="ob-footer"><button ${!state.profile.size?'disabled':''} onclick="obNext('hair')"><span>Continue</span></button></div>`;
+  }
+  else if(state.onboardingStep === 'hair'){
+    body = `
+      <div class="ob-body">
+        <p style="font-size:12px;color:var(--ink-light);">Step 3 of 3</p>
+        <h1 style="margin-top:6px;">What's your hair type?</h1>
+        <div class="ob-options">
+          ${['Straight','Wavy','Curly','Coily'].map(o=>`<button class="${state.profile.hair===o?'picked':''}" onclick="pickProfile('hair','${o}')">${o}</button>`).join('')}
+        </div>
+      </div>
+      <div class="ob-footer"><button ${!state.profile.hair?'disabled':''} onclick="obNext('guide1')"><span>Continue</span></button></div>`;
+  }
+  else {
+    const guides = [
+      {icon:'eye',warn:false,title:'Be respectful',text:'No insults, pressure, or harassment toward other members, ever.'},
+      {icon:'check',warn:false,title:'Only real, honest listings',text:'Describe items truthfully, including condition and how many times used.'},
+      {icon:'eye',warn:false,title:'Chats can be reviewed',text:'Our team may review conversations to keep the community safe.'},
+      {icon:'flag',warn:true,title:'Breaking these rules has consequences',text:'Violations can lead to a temporary block on your account.'},
+    ];
+    const gi = parseInt(state.onboardingStep.slice(-1)) - 1;
+    const g = guides[gi];
+    const isLast = gi === 3;
+    body = `
+      <div class="ob-body">
+        <p style="font-size:12px;color:var(--ink-light);">Guideline ${gi+1} of 4</p>
+        <div class="ob-icon-circle ${g.warn?'warn':''}" style="margin-top:14px;">${svg(g.icon,20)}</div>
+        <h1>${g.title}</h1>
+        <p class="lead">${g.text}</p>
+        <label class="ob-agree">
+          <input type="checkbox" ${state.guideAgreed[gi]?'checked':''} onchange="toggleGuide(${gi},this.checked)" />
+          I agree to this
+        </label>
+      </div>
+      <div class="ob-footer">
+        <button onclick="obGuideNext(${gi},${isLast})"><span>${isLast?'Start browsing':'Continue'}</span></button>
+        <p class="ob-err" id="ob-err">Agree to continue.</p>
+      </div>`;
+  }
+
+  el.innerHTML = dots + body;
+}
+function pickProfile(key,val){ state.profile[key]=val; renderOnboarding(); }
+function obNext(step){ state.onboardingStep = step; renderOnboarding(); }
+function toggleGuide(i,val){ state.guideAgreed[i]=val; }
+function obGuideNext(i,isLast){
+  if(!state.guideAgreed[i]){ document.getElementById('ob-err').style.display='block'; return; }
+  if(isLast){ finishOnboarding(); return; }
+  obNext('guide'+(i+2));
+}
+function finishOnboarding(){
+  document.getElementById('onboarding').style.display='none';
+  document.getElementById('main-app').style.display='flex';
+  renderTab();
+}
+
+/* ================= TAB NAV ================= */
+function setTab(tab){
+  state.tab = tab;
+  document.querySelectorAll('.bottom-nav button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab===tab);
+  });
+  document.querySelectorAll('.bottom-nav button').forEach(b=>{
+    if(!['home','want','demand','explore','chat'].includes(tab)) b.classList.remove('active');
+  });
+  renderTab();
+}
+function openMenu(){ document.getElementById('side-menu').classList.add('open'); }
+function closeMenu(){ document.getElementById('side-menu').classList.remove('open'); }
+
+function renderTab(){
+  const c = document.getElementById('content');
+  if(state.tab==='home') c.innerHTML = renderHome();
+  else if(state.tab==='want') c.innerHTML = renderWant();
+  else if(state.tab==='demand') c.innerHTML = renderDemand();
+  else if(state.tab==='explore') c.innerHTML = renderExplore();
+  else if(state.tab==='chat') c.innerHTML = state.activeChat===null ? renderChatList() : renderChatThread();
+  else if(state.tab==='reviews') c.innerHTML = renderReviews();
+  else if(state.tab==='profile') c.innerHTML = renderProfile();
+  else if(state.tab==='guidelines') c.innerHTML = renderGuidelinesView();
+}
+
+/* ---------------- HOME ---------------- */
+function renderHome(){
+  const items = LISTINGS[state.category];
+  return `
+    <div class="section-head">
+      <h1>For you</h1>
+      <p>Picked based on your profile</p>
+    </div>
+    <div class="cat-toggle">
+      <button class="${state.category==='beauty'?'active':''}" onclick="setCategory('beauty')">Beauty</button>
+      <button class="${state.category==='clothes'?'active':''}" onclick="setCategory('clothes')">Clothes</button>
+    </div>
+    <div class="grid">
+      ${items.map(it=>`
+        <div class="listing-card ${state.category}">
+          <div class="thumb">${svg(state.category==='beauty'?'flask':'dress',24)}</div>
+          <div class="info">
+            <div class="name">${it.name}</div>
+            <div class="price">${it.price}</div>
+            <div class="meta">${it.reason} &middot; ${it.used}</div>
+            ${it.match?`<span class="match-badge">${it.match}</span>`:''}
+          </div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+function setCategory(cat){ state.category=cat; renderTab(); }
+
+/* ---------------- WANT ---------------- */
+function renderWant(){
+  return `
+    <div class="section-head">
+      <h1>Your wants</h1>
+      <p>Post what you're looking for and get matched</p>
+    </div>
+    <div class="post-btn-wrap">
+      <button class="post-toggle" onclick="toggleWantForm()">${svg('plus',16)} Post a want</button>
+    </div>
+    ${state.showWantForm ? `
+      <div class="post-form">
+        <label>Item</label>
+        <input id="want-item" placeholder="e.g. Green clay mask" />
+        <label>Category</label>
+        <select id="want-cat"><option>Beauty</option><option>Clothes</option></select>
+        <label>Note</label>
+        <textarea id="want-note" rows="2" placeholder="Any details that help sellers"></textarea>
+        <div class="form-row">
+          <button class="btn-cancel" onclick="toggleWantForm()">Cancel</button>
+          <button class="btn-solid" onclick="submitWant()"><span class="shine"></span><span class="label">Post</span></button>
+        </div>
+      </div>` : ''}
+    ${state.wants.map(w=>`
+      <div class="plain-card">
+        <h3>${w.item}</h3>
+        <div class="sub">${w.note} &middot; ${w.area}</div>
+      </div>`).join('')}
+  `;
+}
+function toggleWantForm(){ state.showWantForm = !state.showWantForm; renderTab(); }
+function submitWant(){
+  const item = document.getElementById('want-item').value.trim();
+  const note = document.getElementById('want-note').value.trim();
+  if(!item) return;
+  state.wants.unshift({item, note: note||'No extra notes', area:'Your area'});
+  state.showWantForm = false;
+  renderTab();
+}
+
+/* ---------------- DEMAND ---------------- */
+const DEMAND_ITEMS = [
+  {item:'Hair mask, curly hair', area:'Heliopolis'},
+  {item:'Denim jacket, size M', area:'Nasr City'},
+];
+function renderDemand(){
+  return `
+    <div class="section-head">
+      <h1>Open requests</h1>
+      <p>People nearby are looking for these</p>
+    </div>
+    ${DEMAND_ITEMS.map((d,i)=>`
+      <div class="plain-card">
+        <h3>${d.item}</h3>
+        <div class="sub">Someone in ${d.area} is looking for this</div>
+        <div class="row">
+          <button class="btn-outline ${state.demandOffered[i]?'done':''}" onclick="offerDemand(${i})">${state.demandOffered[i]?'Offered '+svg('check',12):'I can sell it'}</button>
+          <button class="btn-outline" onclick="toggleComment(${i})">Leave a comment</button>
+        </div>
+        ${state.demandOpenComment===i?`<textarea class="comment-box" id="comment-${i}" rows="2" placeholder="Write a comment"></textarea>
+          <div class="row"><button class="btn-solid" onclick="submitComment(${i})"><span class="shine"></span><span class="label">Send</span></button></div>`:''}
+        ${state.demandComments[i] && state.demandComments[i].length ? `<div class="comment-list">${state.demandComments[i].map(c=>`<div class="c">${c}</div>`).join('')}</div>`:''}
+      </div>`).join('')}
+  `;
+}
+function offerDemand(i){ state.demandOffered[i]=true; renderTab(); }
+function toggleComment(i){ state.demandOpenComment = state.demandOpenComment===i? null : i; renderTab(); }
+function submitComment(i){
+  const val = document.getElementById('comment-'+i).value.trim();
+  if(!val) return;
+  if(!state.demandComments[i]) state.demandComments[i]=[];
+  state.demandComments[i].push(val);
+  state.demandOpenComment = null;
+  renderTab();
+}
+
+/* ---------------- EXPLORE ---------------- */
+function renderExplore(){
+  if(state.openArea!==null){
+    const a = AREAS[state.openArea];
+    return `
+      <div class="section-head" style="display:flex;align-items:center;gap:10px;">
+        <button onclick="state.openArea=null;renderTab();" style="background:none;border:none;color:var(--ink-light);">${svg('arrowLeft',18)}</button>
+        <div><h1 style="font-size:19px;">${a.name}</h1><p>${a.count} active listings</p></div>
+      </div>
+      ${LISTINGS.beauty.slice(0,2).concat(LISTINGS.clothes.slice(0,2)).map(it=>`
+        <div class="plain-card"><h3>${it.name}</h3><div class="sub">${it.price} &middot; ${it.used}</div></div>`).join('')}
+    `;
+  }
+  return `
+    <div class="section-head"><h1>Explore</h1><p>Find listings by neighborhood</p></div>
+    <div class="view-toggle">
+      <button class="${state.exploreView==='map'?'active':''}" onclick="setExploreView('map')">Map</button>
+      <button class="${state.exploreView==='list'?'active':''}" onclick="setExploreView('list')">List</button>
+    </div>
+    ${state.exploreView==='map' ? `
+      <div class="map-wrap">
+        ${AREAS.map((a,i)=>`
+          <div class="pin" style="left:${a.x};top:${a.y};" onclick="state.openArea=${i};renderTab();">
+            <div class="dot"><span>${a.count}</span></div>
+            <div class="label">${a.name}</div>
+          </div>`).join('')}
+      </div>` : `
+      <div style="padding-top:12px;">
+        ${AREAS.map((a,i)=>`
+          <div class="area-row" onclick="state.openArea=${i};renderTab();">
+            <span>${a.name}</span><span class="count">${a.count}</span>
+          </div>`).join('')}
+      </div>`}
+  `;
+}
+function setExploreView(v){ state.exploreView=v; renderTab(); }
+
+/* ---------------- CHAT ---------------- */
+function renderChatList(){
+  return `
+    <div class="section-head"><h1>Chats</h1><p>Conversations with matched sellers and buyers</p></div>
+    ${THREADS.map((t,i)=>`
+      <div class="thread-row" onclick="openChat(${i})">
+        <div class="avatar">${t.initials}</div>
+        <div><div class="t-name">${t.name}</div><div class="t-sub">${t.sub}</div></div>
+      </div>`).join('')}
+  `;
+}
+function openChat(i){ state.activeChat=i; renderTab(); }
+function renderChatThread(){
+  const t = THREADS[state.activeChat];
+  return `
+    <div style="display:flex;flex-direction:column;height:100%;">
+      <div class="thread-header">
+        <button onclick="state.activeChat=null;renderTab();">${svg('arrowLeft',18)}</button>
+        <div class="avatar" style="width:32px;height:32px;font-size:11px;">${t.initials}</div>
+        <div><div class="t-name" style="font-size:13.5px;">${t.name}</div><div class="t-sub">${t.sub}</div></div>
+      </div>
+      <div class="mod-banner">${svg('eye',13)} Chats may be reviewed to keep the community safe</div>
+      <div class="messages">
+        ${CHAT_MESSAGES.map(m=>`<div class="bubble ${m.who==='me'?'me':'them'}">${m.text}</div>`).join('')}
+      </div>
+      <div class="composer">
+        <button class="flag-btn">${svg('flag',15)}</button>
+        <input placeholder="Write a message" />
+        <button class="send-btn"><span class="shine" style="position:absolute;top:3px;left:5px;width:12px;height:8px;background:rgba(255,255,255,.25);border-radius:8px;"></span>${svg('send',14)}</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- REVIEWS ---------------- */
+function renderReviews(){
+  const reviews = [
+    {name:'Curly hair mask', stars:5, days:'Used for 3 weeks', text:'Worked well with my curl pattern, would buy this brand again.'},
+    {name:'Linen midi dress', stars:4, days:'Worn for a month', text:'Fit true to size, fabric held up nicely after a few washes.'},
+  ];
+  return `
+    <div class="section-head" style="display:flex;align-items:center;gap:10px;">
+      <button onclick="setTab('home')" style="background:none;border:none;color:var(--ink-light);">${svg('arrowLeft',18)}</button>
+      <div><h1 style="font-size:19px;">Reviews</h1><p>From verified purchasers only</p></div>
+    </div>
+    ${reviews.map(r=>`
+      <div class="review-card">
+        <h3>${r.name}</h3>
+        <div class="stars">${'\u2605'.repeat(r.stars)}${'\u2606'.repeat(5-r.stars)}</div>
+        <div class="review-photos"><div>Before</div><div>After</div></div>
+        <p class="sub">${r.text}</p>
+        <div class="verified-tag">${svg('check',12)} Verified purchase &middot; ${r.days}</div>
+      </div>`).join('')}
+  `;
+}
+
+/* ---------------- PROFILE ---------------- */
+function renderProfile(){
+  return `
+    <div class="section-head" style="display:flex;align-items:center;gap:10px;">
+      <button onclick="setTab('home')" style="background:none;border:none;color:var(--ink-light);">${svg('arrowLeft',18)}</button>
+      <div><h1 style="font-size:19px;">My profile</h1></div>
+    </div>
+    <div class="plain-card">
+      <h3>Skin type</h3><div class="sub">${state.profile.skin||'\u2014'}</div>
+    </div>
+    <div class="plain-card">
+      <h3>Clothing size</h3><div class="sub">${state.profile.size||'\u2014'}</div>
+    </div>
+    <div class="plain-card">
+      <h3>Hair type</h3><div class="sub">${state.profile.hair||'\u2014'}</div>
+    </div>
+  `;
+}
+
+/* ---------------- GUIDELINES (view-only recap) ---------------- */
+function renderGuidelinesView(){
+  const guides = [
+    'Be respectful \u2014 no insults, pressure, or harassment.',
+    'Only real, honest listings \u2014 describe condition and use truthfully.',
+    'Chats can be reviewed \u2014 our team may review conversations for safety.',
+    'Breaking these rules has consequences \u2014 violations can lead to a block.'
+  ];
+  return `
+    <div class="section-head" style="display:flex;align-items:center;gap:10px;">
+      <button onclick="setTab('home')" style="background:none;border:none;color:var(--ink-light);">${svg('arrowLeft',18)}</button>
+      <div><h1 style="font-size:19px;">Community guidelines</h1></div>
+    </div>
+    ${guides.map(g=>`<div class="plain-card"><div class="sub">${g}</div></div>`).join('')}
+  `;
+}
+
+/* ---------------- INIT ---------------- */
+renderOnboarding();
+</script>
+</body>
+</html>

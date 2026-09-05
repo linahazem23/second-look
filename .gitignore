@@ -1,0 +1,26 @@
+.neon
+.env
+.env.local
+.env.*.local
+apps/server/uploads/*
+!apps/server/uploads/.gitkeep
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Vite cache
+.vite/

@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum Category {
+  Skincare
+  Makeup
+  Clothes
+}
+
+enum Condition {
+  NeverUsed
+  UsedOnce
+  UsedAFewTimes
+  RegularlyUsed
+}
+
+enum UserStatus {
+  Good
+  BuyOnlyRestricted
+  Blocked
+}
+
+enum ListingStatus {
+  Active
+  Removed
+  UnderReview
+  Sold
+}
+
+enum OrderEscrowStatus {
+  InEscrow
+  PaymentReleased
+  Disputed
+}
+
+enum DeliveryMethod {
+  Meetup
+  UberCourier
+  InDrive
+  BostaMylerz
+}
+
+enum ReviewType {
+  Product
+  Person
+}
+
+model User {
+  id                  String        @id @default(cuid())
+  email               String        @unique
+  passwordHash        String
+  fullName            String
+  area                String
+  languagePreference  String        @default("en")
+  verifiedFemale      Boolean       @default(false)
+  age                 Int?
+  kycStatus           String        @default("pending")
+  status              UserStatus    @default(Good)
+  buyOnlyUntil        DateTime?
+  blockedUntil        DateTime?
+  flagCount           Int           @default(0)
+  lastFlagAt          DateTime?
+  completedSalesCount Int           @default(0)
+  monetizationMode    String?
+  skinType            String?
+  hairType            String?
+  clothingSize        String?
+  // Growth/referral promo: membership perks (currently: free boosting + a Plus
+  // badge) are active whenever membershipExpiresAt is in the future — checked live
+  // on every read, never written back on expiry, so there's nothing to "forget".
+  referralCode           String?   @unique
+  referredByUserId       String?
+  referredByUser         User?     @relation("Referrals", fields: [referredByUserId], references: [id])
+  referrals              User[]    @relation("Referrals")
+  membershipExpiresAt    DateTime?
+  videoPromoGrantsUsed   Int       @default(0)
+  referralRewardsGranted Int       @default(0)
+  createdAt           DateTime      @default(now())
+  listings            Listing[]
+  ordersAsBuyer       Order[]       @relation("BuyerOrders")
+  ordersAsSeller      Order[]       @relation("SellerOrders")
+  reviewsWritten      Review[]      @relation("ReviewsWritten")
+  reviewsReceived     Review[]      @relation("ReviewsReceived")
+  guidelineAcceptances GuidelineAcceptance[]
+  wantRequests        DemandRequest[]
+  boostPayments       BoostPayment[]
+  savedListings       SavedListing[]
+  videoSubmissions    VideoSubmission[]
+}
+
+model VideoSubmission {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+  videoUrl          String
+  status            String   @default("pending") // pending | approved | rejected
+  rejectionReason   String?
+  reviewedByAdminId String?
+  createdAt         DateTime @default(now())
+  reviewedAt        DateTime?
+}
+
+model SavedListing {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, listingId])
+}
+
+model GuidelineAcceptance {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  slideIndex Int
+  acceptedAt DateTime @default(now())
+
+  @@unique([userId, slideIndex])
+}
+
+model Listing {
+  id              String        @id @default(cuid())
+  sellerId        String
+  seller          User          @relation(fields: [sellerId], references: [id])
+  title           String
+  category        Category
+  originalPrice   Float
+  price           Float
+  reasonForSelling String
+  condition       Condition
+  allowOffers     Boolean       @default(false)
+  size            String?
+  images          String[]
+  status          ListingStatus @default(Active)
+  area            String
+  boosted         Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  orders          Order[]
+  reports         ListingReport[]
+  savedBy         SavedListing[]
+}
+
+model DemandRequest {
+  id            String        @id @default(cuid())
+  requesterId   String
+  requester     User          @relation(fields: [requesterId], references: [id])
+  itemName      String
+  category      Category
+  area          String
+  note          String?
+  status        String        @default("open")
+  boosted       Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  comments      DemandComment[]
+  notifications DemandNotification[]
+}
+
+model DemandComment {
+  id        String          @id @default(cuid())
+  requestId String
+  request   DemandRequest   @relation(fields: [requestId], references: [id])
+  authorId  String
+  body      String
+  createdAt DateTime        @default(now())
+}
+
+model DemandNotification {
+  id             String          @id @default(cuid())
+  requestId      String
+  request        DemandRequest   @relation(fields: [requestId], references: [id])
+  recipientId    String
+  status         String          @default("pending")
+  createdAt      DateTime        @default(now())
+}
+
+model Order {
+  id                String              @id @default(cuid())
+  buyerId           String
+  buyer             User                @relation("BuyerOrders", fields: [buyerId], references: [id])
+  sellerId          String
+  seller            User                @relation("SellerOrders", fields: [sellerId], references: [id])
+  listingId         String
+  listing           Listing             @relation(fields: [listingId], references: [id])
+  amount            Float
+  deliveryMethod    DeliveryMethod
+  escrowStatus      OrderEscrowStatus   @default(InEscrow)
+  deliveryConfirmed Boolean            @default(false)
+  deliveryConfirmedAt DateTime?
+  paymentReleasedAt DateTime?
+  reviewUnlockAt    DateTime?
+  createdAt         DateTime            @default(now())
+  reviews           Review[]
+  chats             Chat[]
+  trackingLinks     TrackingLink[]
+}
+
+model TrackingLink {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id])
+  url          String
+  createdAt    DateTime @default(now())
+  visibleToOps Boolean  @default(true)
+}
+
+model Review {
+  id                    String      @id @default(cuid())
+  orderId               String
+  order                 Order       @relation(fields: [orderId], references: [id])
+  reviewerId            String
+  reviewer              User        @relation("ReviewsWritten", fields: [reviewerId], references: [id])
+  reviewedUserId        String
+  reviewedUser          User        @relation("ReviewsReceived", fields: [reviewedUserId], references: [id])
+  type                  ReviewType
+  // Product review fields
+  productIdentity       String?
+  usageDuration         String?
+  beforePhotoUrl        String?
+  afterPhotoUrl         String?
+  // Person review fields (structured categories, not free text)
+  honestListing         Boolean?
+  easyToCommunicate     Boolean?
+  showedUpAsAgreed      Boolean?
+  // Shared
+  starRating            Int?
+  notes                 String?
+  createdAt             DateTime    @default(now())
+  // Blind & simultaneous release for person reviews
+  revealed              Boolean     @default(false)
+  revealDeadline        DateTime?
+  // Anti-fraud / moderation
+  flagged               Boolean     @default(false)
+  fraudSignals          String[]
+  disputeStatus         String      @default("none")
+  disputeNote           String?
+}
+
+model ListingReport {
+  id            String   @id @default(cuid())
+  listingId     String
+  listing       Listing  @relation(fields: [listingId], references: [id])
+  reporterId    String
+  reason        String
+  detailText    String?
+  originalPrice Float?
+  listedPrice   Float?
+  status        String   @default("under_review")
+  createdAt     DateTime @default(now())
+}
+
+model ModerationCase {
+  id                 String   @id @default(cuid())
+  contextType        String
+  contextId          String
+  reviewerId         String?
+  reviewedUserId     String?
+  // Which side is currently the target of the coaching/strike action.
+  // Flips from "reviewed" to "reviewer" via the "Flag reviewer instead" action.
+  flagTarget         String   @default("reviewed")
+  status             String   @default("open")
+  reason             String
+  reviewerNotes      String?
+  reviewedNotes      String?
+  notes              String?
+  resolvedByAdminId  String?
+  createdAt          DateTime @default(now())
+  resolvedAt         DateTime?
+}
+
+model Appeal {
+  id                 String   @id @default(cuid())
+  userId             String
+  originalDecision   String
+  originalModeratorId String?
+  statement          String
+  status             String   @default("pending")
+  moderatorId        String?
+  decisionReason     String?
+  createdAt          DateTime @default(now())
+  responseDueAt      DateTime?
+  reviewedAt         DateTime?
+}
+
+model Ad {
+  id         String   @id @default(cuid())
+  slotType   String
+  brand      String
+  creativeUrl String?
+  startDate  DateTime
+  endDate    DateTime
+  status     String   @default("scheduled")
+  createdAt  DateTime @default(now())
+}
+
+model BoostPayment {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  targetType String
+  targetId   String
+  amount     Float
+  createdAt  DateTime @default(now())
+}
+
+model Chat {
+  id              String    @id @default(cuid())
+  orderId         String
+  order           Order     @relation(fields: [orderId], references: [id])
+  messageText     String
+  senderId        String
+  createdAt       DateTime  @default(now())
+  autoFlagged     Boolean   @default(false)
+  flaggedKeyword  String?
+  reported        Boolean   @default(false)
+}
+
+model SupportMessage {
+  id         String   @id @default(cuid())
+  userId     String
+  body       String
+  fromSupport Boolean @default(false)
+  quickReplyKey String?
+  createdAt  DateTime @default(now())
+}
+
+model AdminUser {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  role          String   @default("moderator")
+  fullName      String
+  createdAt     DateTime @default(now())
+}

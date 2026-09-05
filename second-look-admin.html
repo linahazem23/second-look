@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Second Look — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Karla:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --rose:#D4638A; --rose-dark:#C6597A; --rose-soft:#F6D9E3;
+    --ink:#3A2C31; --ink-light:#7A6B70; --ink-faint:#B3A2A8;
+    --line:#E9DEE1; --bg:#FAF6F7; --card:#FFFFFF;
+    --warn-bg:#F3DCC9; --warn-ink:#B5654A;
+    --ok-bg:#EAEEDD; --ok-ink:#767B54;
+    --danger-bg:#F6DEDC; --danger-ink:#B5423B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Karla',sans-serif;background:var(--bg);color:var(--ink);}
+  h1,h2,h3,p{margin:0;}
+  button{font-family:inherit;cursor:pointer;}
+  table{border-collapse:collapse;width:100%;}
+
+  #app{display:flex;min-height:100vh;}
+
+  /* ---------- Sidebar ---------- */
+  #sidebar{
+    width:220px;flex-shrink:0;background:var(--card);border-right:0.5px solid var(--line);
+    display:flex;flex-direction:column;padding:20px 0;
+  }
+  #sidebar .brand{font-family:'Fraunces',serif;font-size:17px;font-weight:600;padding:0 20px 20px;border-bottom:0.5px solid var(--line);margin-bottom:12px;}
+  #sidebar .brand span{display:block;font-family:'Karla',sans-serif;font-size:11px;color:var(--ink-faint);font-weight:400;margin-top:2px;}
+  #sidebar button{
+    display:flex;align-items:center;gap:10px;background:none;border:none;text-align:left;
+    padding:10px 20px;font-size:13px;color:var(--ink-light);width:100%;border-left:3px solid transparent;
+  }
+  #sidebar button.active{color:var(--rose-dark);background:var(--rose-soft);border-left-color:var(--rose);font-weight:500;}
+  #sidebar button .badge{margin-left:auto;background:var(--danger-bg);color:var(--danger-ink);font-size:10px;padding:1px 7px;border-radius:8px;}
+  .icon{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}
+
+  /* ---------- Main ---------- */
+  #main{flex:1;padding:26px 32px;overflow-x:hidden;}
+  .page-head{margin-bottom:20px;}
+  .page-head h1{font-family:'Fraunces',serif;font-size:22px;font-weight:500;}
+  .page-head p{font-size:12.5px;color:var(--ink-light);margin-top:4px;}
+
+  /* ---------- Stat cards ---------- */
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:26px;}
+  .stat-card{background:var(--card);border:0.5px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .stat-card .num{font-family:'Fraunces',serif;font-size:24px;color:var(--ink);}
+  .stat-card .label{font-size:11.5px;color:var(--ink-light);margin-top:4px;}
+
+  /* ---------- Table ---------- */
+  .panel{background:var(--card);border:0.5px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:20px;}
+  .panel-title{padding:14px 18px;border-bottom:0.5px solid var(--line);font-size:13px;font-weight:500;font-family:'Fraunces',serif;}
+  th{text-align:left;font-size:10.5px;color:var(--ink-faint);text-transform:none;padding:10px 18px;border-bottom:0.5px solid var(--line);font-weight:500;}
+  td{padding:11px 18px;font-size:12.5px;border-bottom:0.5px solid var(--line);color:var(--ink);}
+  tr:last-child td{border-bottom:none;}
+  tr.clickable{cursor:pointer;}
+  tr.clickable:hover{background:#FCF8F9;}
+  .pill{display:inline-block;font-size:10.5px;padding:2px 9px;border-radius:9px;}
+  .pill.ok{background:var(--ok-bg);color:var(--ok-ink);}
+  .pill.warn{background:var(--warn-bg);color:var(--warn-ink);}
+  .pill.danger{background:var(--danger-bg);color:var(--danger-ink);}
+  .pill.neutral{background:var(--rose-soft);color:var(--rose-dark);}
+
+  .btn{border:none;padding:8px 14px;border-radius:16px;font-size:12px;font-weight:500;}
+  .btn.solid{background:var(--rose);color:#FFF6F9;}
+  .btn.outline{background:none;border:0.5px solid var(--rose);color:var(--rose-dark);}
+  .btn.ghost{background:none;border:0.5px solid var(--line);color:var(--ink-light);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .back-link{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-light);background:none;border:none;margin-bottom:16px;}
+
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .detail-card{background:var(--card);border:0.5px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .detail-card .sub-label{font-size:10.5px;color:var(--ink-faint);margin-bottom:6px;}
+  textarea{width:100%;border:0.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--ink);resize:none;font-family:inherit;}
+
+  input[type=text], select{border:0.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--ink);font-family:inherit;}
+
+  #topbar{display:flex;align-items:center;gap:10px;margin-bottom:20px;position:relative;}
+  #topbar input{flex:1;max-width:360px;border:0.5px solid var(--line);border-radius:20px;padding:9px 14px 9px 36px;font-size:12.5px;background:var(--card);}
+  #topbar .search-wrap{position:relative;flex:1;max-width:360px;}
+  #topbar .search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);}
+  #search-results{position:absolute;top:38px;left:0;width:360px;background:var(--card);border:0.5px solid var(--line);border-radius:10px;box-shadow:0 6px 18px rgba(58,44,49,0.08);z-index:10;overflow:hidden;display:none;}
+  #search-results.open{display:block;}
+  #search-results .r{padding:9px 14px;font-size:12.5px;border-bottom:0.5px solid var(--line);cursor:pointer;}
+  #search-results .r:last-child{border-bottom:none;}
+  #search-results .r:hover{background:var(--bg);}
+  #search-results .r .type{font-size:10px;color:var(--ink-faint);}
+  .flagged-msg{border:1px solid var(--danger-ink) !important;background:var(--danger-bg) !important;}
+  .flag-tag{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;color:var(--danger-ink);margin-top:3px;}
+
+  @media (max-width:780px){
+    #sidebar{width:64px;}
+    #sidebar .brand, #sidebar button span.label{display:none;}
+    #sidebar button{justify-content:center;padding:12px 0;}
+    #main{padding:18px;}
+    .detail-grid{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar"></div>
+  <div id="main">
+    <div id="topbar">
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B3A2A8" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search-input" type="text" placeholder="Search order number or name..." oninput="onSearch(this.value)" onfocus="onSearch(this.value)" />
+        <div id="search-results"></div>
+      </div>
+    </div>
+    <div id="page-content"></div>
+  </div>
+</div>
+
+<script>
+/* ---------------- ICONS ---------------- */
+const ICON = {
+  overview:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  users:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.4"/><path d="M15.5 12.5a5 5 0 0 1 6 4.5"/>',
+  listings:'<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="4" x2="8" y2="9"/>',
+  orders:'<path d="M6 3h12l1 5H5l1-5Z"/><path d="M5 8h14v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8Z"/>',
+  moderation:'<path d="M12 3 4 6v6c0 4.5 3.4 7.7 8 9 4.6-1.3 8-4.5 8-9V6l-8-3Z"/>',
+  chats:'<path d="M21 12a8 8 0 1 1-3.2-6.4"/><path d="M21 4v6h-6"/>',
+  link:'<path d="M9 12a4 4 0 0 1 0-6l2-2a4 4 0 0 1 6 6l-1 1"/><path d="M15 12a4 4 0 0 1 0 6l-2 2a4 4 0 0 1-6-6l1-1"/>',
+  appeals:'<path d="M9 3h6"/><path d="M12 3v6"/><path d="M4 15h16"/><path d="M6 9l-3 6h6l-3-6Z"/><path d="M18 9l-3 6h6l-3-6Z"/>',
+  reviews:'<path d="M12 3l2.6 5.8L21 9.6l-4.5 4.2L17.6 21 12 17.6 6.4 21l1.1-7.2L3 9.6l6.4-.8L12 3Z"/>',
+  ads:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6"/><path d="M7 13h10"/>',
+  back:'<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  flag:'<path d="M5 3v18"/><path d="M5 4h11l-2 4 2 4H5"/>',
+};
+function svg(name,size=16){return `<svg class="icon" style="width:${size}px;height:${size}px" viewBox="0 0 24 24">${ICON[name]}</svg>`;}
+
+/* ---------------- SAMPLE DATA ---------------- */
+let state = { page:'overview', selectedCase:null, selectedAppeal:null, selectedThread:null, selectedReport:null };
+
+const USERS = [
+  {id:'u1', name:'Amira R.', joined:'8 months ago', orders:12, standing:'Good', flags:0},
+  {id:'u2', name:'Basma T.', joined:'1.4 years ago', orders:31, standing:'Restricted — buy only', flags:2},
+  {id:'u3', name:'Nourhan K.', joined:'3 months ago', orders:5, standing:'Good', flags:0},
+  {id:'u4', name:'Salma H.', joined:'2 years ago', orders:64, standing:'Good', flags:0},
+  {id:'u5', name:'Rania M.', joined:'1 month ago', orders:1, standing:'Blocked until Sept 18', flags:3},
+];
+
+const LISTINGS = [
+  {id:'l1', name:'Curly hair mask', seller:'Basma T.', category:'Skincare', price:'120 EGP', status:'Active'},
+  {id:'l2', name:'Linen midi dress', seller:'Salma H.', category:'Clothes', price:'340 EGP', status:'Active'},
+  {id:'l3', name:'Vitamin C serum', seller:'Rania M.', category:'Skincare', price:'260 EGP', status:'Under review'},
+  {id:'l4', name:'Denim jacket', seller:'Nourhan K.', category:'Clothes', price:'420 EGP', status:'Active'},
+];
+
+const REPORTS = [
+  {id:'r1', listing:'l3', item:'Vitamin C serum', seller:'Rania M.', originalPrice:'300 EGP', yourPrice:'260 EGP',
+   reason:'Price seems unreasonable for the item\u2019s condition', detail:'Listed as used 3 times but priced almost like new, seems too high.', status:'Awaiting review'},
+];
+
+const ORDERS = [
+  {id:'o1042', item:'Curly hair mask', buyer:'Amira R.', seller:'Basma T.', amount:'120 EGP', status:'Disputed', delivery:'inDrive'},
+  {id:'o1041', item:'Linen midi dress', buyer:'Nourhan K.', seller:'Salma H.', amount:'340 EGP', status:'Payment released', delivery:'Meetup'},
+  {id:'o1039', item:'Denim jacket', buyer:'Salma H.', seller:'Nourhan K.', amount:'420 EGP', status:'In escrow', delivery:'Uber Courier'},
+  {id:'o1035', item:'Setting powder', buyer:'Rania M.', seller:'Amira R.', amount:'150 EGP', status:'Payment released', delivery:'Meetup'},
+];
+
+const CASES = [
+  {id:'1042', order:'o1042', reviewer:{name:'Amira R.', orders:12, joined:'8 months ago', rating:'★★☆☆☆', quote:'Item didn\u2019t match description, seller was rude when I asked'},
+   reviewed:{name:'Basma T.', orders:31, joined:'1.4 years ago', avg:'4.6', priorFlags:1}, status:'Awaiting review'},
+];
+
+const APPEALS = [
+  {id:'a501', user:'Basma T.', case:'Case #1042 — buy-only restriction', submitted:'2 hours ago',
+   text:'Amira never messaged me about a problem before rating me low, and the mask was brand new like I described. I think she rated me by mistake.', status:'Awaiting review'},
+];
+
+const THREADS = [
+  {id:'t1', order:'o1042', a:'Amira R.', b:'Basma T.', reported:true, deliveryLink:'indrive.com/t/8f2a91', deliveryMethod:'inDrive',
+   messages:[
+     {who:'a', text:'Hi, is the hair mask still available'},
+     {who:'b', text:'Yes, still have it, barely used'},
+     {who:'a', text:'It arrived looking more used than described'},
+     {who:'b', text:'Stop being so dramatic, you\u2019re being stupid about a hair mask'},
+   ]},
+  {id:'t2', order:'o1039', a:'Salma H.', b:'Nourhan K.', reported:false, deliveryLink:'ubereats.com/courier/t/4c1e02', deliveryMethod:'Uber Courier',
+   messages:[
+     {who:'a', text:'Can you ship the jacket, I\u2019d rather not meet up'},
+     {who:'b', text:'Sure, booking an Uber courier now'},
+   ]},
+  {id:'t3', order:'o1041', a:'Nourhan K.', b:'Salma H.', reported:false, deliveryLink:null, deliveryMethod:'Meetup',
+   messages:[
+     {who:'a', text:'Does Zamalek work for you on Thursday'},
+     {who:'b', text:'Perfect, see you then'},
+   ]},
+];
+
+const AD_SLOTS = [
+  {id:'ad1', slot:'Top-of-feed banner', brand:'Rima Skincare', dates:'Sept 1 – Sept 14', status:'Live'},
+  {id:'ad2', slot:'In-feed sponsored card', brand:'Nefertari Cosmetics', dates:'Sept 10 – Sept 24', status:'Scheduled'},
+];
+
+/* ---------------- NAV ---------------- */
+const NAV = [
+  {id:'overview', label:'Overview', icon:'overview'},
+  {id:'users', label:'Users', icon:'users'},
+  {id:'listings', label:'Listings', icon:'listings'},
+  {id:'reports', label:'Reported listings', icon:'flag', badge:REPORTS.filter(r=>r.status==='Awaiting review').length || null},
+  {id:'orders', label:'Orders', icon:'orders'},
+  {id:'moderation', label:'Moderation', icon:'moderation', badge:CASES.length},
+  {id:'chats', label:'Chats', icon:'chats', badge:THREADS.filter(t=>t.reported).length || null},
+  {id:'appeals', label:'Appeals', icon:'appeals', badge:APPEALS.length},
+  {id:'reviews', label:'Reviews', icon:'reviews'},
+  {id:'ads', label:'Ads', icon:'ads'},
+];
+
+function renderSidebar(){
+  const el = document.getElementById('sidebar');
+  el.innerHTML = `
+    <div class="brand">Second Look<span>Admin</span></div>
+    ${NAV.map(n=>`
+      <button class="${state.page===n.id?'active':''}" onclick="goPage('${n.id}')">
+        ${svg(n.icon,16)}<span class="label">${n.label}</span>
+        ${n.badge?`<span class="badge">${n.badge}</span>`:''}
+      </button>`).join('')}
+  `;
+}
+function goPage(p){ state.page=p; state.selectedCase=null; state.selectedAppeal=null; state.selectedThread=null; state.selectedReport=null; render(); }
+
+/* ---------------- RENDER ROUTER ---------------- */
+function render(){
+  renderSidebar();
+  const m = document.getElementById('page-content');
+  if(state.page==='overview') m.innerHTML = pageOverview();
+  else if(state.page==='users') m.innerHTML = pageUsers();
+  else if(state.page==='listings') m.innerHTML = pageListings();
+  else if(state.page==='reports') m.innerHTML = state.selectedReport ? pageReportDetail() : pageReports();
+  else if(state.page==='orders') m.innerHTML = pageOrders();
+  else if(state.page==='moderation') m.innerHTML = state.selectedCase ? pageCaseDetail() : pageModeration();
+  else if(state.page==='chats') m.innerHTML = state.selectedThread ? pageThreadDetail() : pageChats();
+  else if(state.page==='appeals') m.innerHTML = state.selectedAppeal ? pageAppealDetail() : pageAppeals();
+  else if(state.page==='reviews') m.innerHTML = pageReviews();
+  else if(state.page==='ads') m.innerHTML = pageAds();
+}
+
+/* ---------------- OVERVIEW ---------------- */
+function pageOverview(){
+  return `
+    <div class="page-head"><h1>Overview</h1><p>Snapshot of activity across Second Look</p></div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="num">1,284</div><div class="label">Active users</div></div>
+      <div class="stat-card"><div class="num">342</div><div class="label">Live listings</div></div>
+      <div class="stat-card"><div class="num">96</div><div class="label">Orders this week</div></div>
+      <div class="stat-card"><div class="num">${CASES.length}</div><div class="label">Open moderation cases</div></div>
+      <div class="stat-card"><div class="num">${APPEALS.length}</div><div class="label">Pending appeals</div></div>
+      <div class="stat-card"><div class="num">${REPORTS.filter(r=>r.status==='Awaiting review').length}</div><div class="label">Reported listings</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Recent orders</div>
+      <table>
+        <tr><th>Order</th><th>Item</th><th>Buyer</th><th>Seller</th><th>Status</th></tr>
+        ${ORDERS.slice(0,4).map(o=>`
+          <tr><td>${o.id}</td><td>${o.item}</td><td>${o.buyer}</td><td>${o.seller}</td><td>${statusPill(o.status)}</td></tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+function statusPill(status){
+  const map = {
+    'Active':'ok', 'Removed':'danger', 'Disputed':'warn', 'Payment released':'ok', 'In escrow':'neutral',
+    'Awaiting review':'warn', 'Good':'ok', 'Live':'ok', 'Scheduled':'neutral', 'Under review':'warn'
+  };
+  let cls = 'neutral';
+  Object.keys(map).forEach(k=>{ if(status.indexOf(k)===0) cls = map[k]; });
+  if(status.indexOf('Restricted')===0 || status.indexOf('Blocked')===0) cls='danger';
+  return `<span class="pill ${cls}">${status}</span>`;
+}
+
+/* ---------------- USERS ---------------- */
+function pageUsers(){
+  return `
+    <div class="page-head"><h1>Users</h1><p>Standing, order history, and flags</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Name</th><th>Joined</th><th>Completed orders</th><th>Flags</th><th>Standing</th></tr>
+        ${USERS.map(u=>`
+          <tr><td>${u.name}</td><td>${u.joined}</td><td>${u.orders}</td><td>${u.flags}</td><td>${statusPill(u.standing)}</td></tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+
+/* ---------------- LISTINGS ---------------- */
+function pageListings(){
+  return `
+    <div class="page-head"><h1>Listings</h1><p>All active and removed listings</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Item</th><th>Seller</th><th>Category</th><th>Price</th><th>Status</th><th></th></tr>
+        ${LISTINGS.map(l=>`
+          <tr><td>${l.name}</td><td>${l.seller}</td><td>${l.category}</td><td>${l.price}</td><td>${statusPill(l.status)}</td>
+          <td>${l.status==='Active'?`<button class="btn ghost" onclick="removeListing('${l.id}')">Remove</button>`:''}</td></tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+function removeListing(id){
+  const l = LISTINGS.find(x=>x.id===id);
+  if(l) l.status='Removed';
+  render();
+}
+
+/* ---------------- REPORTED LISTINGS ---------------- */
+function pageReports(){
+  return `
+    <div class="page-head"><h1>Reported listings</h1><p>One report is enough to take a listing offline pending review — it stays hidden from buyers until resolved here</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Item</th><th>Seller</th><th>Reason</th><th>Status</th></tr>
+        ${REPORTS.map(r=>`
+          <tr class="clickable" onclick="openReport('${r.id}')">
+            <td>${r.item}</td><td>${r.seller}</td><td>${r.reason}</td><td>${statusPill(r.status)}</td>
+          </tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+function openReport(id){ state.selectedReport = REPORTS.find(r=>r.id===id); render(); }
+function pageReportDetail(){
+  const r = state.selectedReport;
+  return `
+    <button class="back-link" onclick="goPage('reports')">${svg('back',14)} Back to reported listings</button>
+    <div class="page-head"><h1>${r.item}</h1><p>Reported by a buyer &middot; ${statusPill(r.status)}</p></div>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <p class="sub-label">LISTING</p>
+        <p style="font-size:13.5px;margin-bottom:2px;"><b>${r.item}</b> &middot; ${r.seller}</p>
+        <p style="font-size:12.5px;color:var(--ink-light);margin-bottom:10px;">Original ${r.originalPrice} &rarr; Listed ${r.yourPrice}</p>
+        <p class="sub-label">REPORT REASON</p>
+        <p style="font-size:13px;margin-bottom:6px;">${r.reason}</p>
+        <p style="font-size:12px;color:var(--ink-light);">${r.detail}</p>
+      </div>
+      <div class="detail-card">
+        <p class="sub-label">YOUR DECISION</p>
+        <textarea rows="3" placeholder="Notes on your review of this listing"></textarea>
+        <div class="btn-row" style="margin-top:14px;">
+          <button class="btn solid" onclick="resolveReport('${r.id}','restore')">Restore listing</button>
+          <button class="btn ghost" onclick="resolveReport('${r.id}','remove')">Remove listing</button>
+        </div>
+        <div style="border-top:0.5px dashed var(--rose);margin-top:16px;padding-top:14px;">
+          <p style="font-size:11.5px;color:var(--ink-light);margin-bottom:8px;">Send the seller a quick coaching tip — this does <b>not</b> count as a flag or strike.</p>
+          <button class="btn outline" onclick="alert('Coaching tip sent to ' + '${r.seller}' + ' — no strike recorded')">Send coaching tip</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function resolveReport(id, outcome){
+  const r = REPORTS.find(x=>x.id===id);
+  const l = LISTINGS.find(x=>x.id===r.listing);
+  if(l) l.status = outcome==='restore' ? 'Active' : 'Removed';
+  if(r) r.status = outcome==='restore' ? 'Restored' : 'Removed';
+  goPage('reports');
+}
+
+/* ---------------- ORDERS ---------------- */
+function pageOrders(){
+  return `
+    <div class="page-head"><h1>Orders</h1><p>Escrow status and delivery method per order</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Order</th><th>Item</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Delivery</th><th>Status</th></tr>
+        ${ORDERS.map(o=>`
+          <tr><td>${o.id}</td><td>${o.item}</td><td>${o.buyer}</td><td>${o.seller}</td><td>${o.amount}</td><td>${o.delivery}</td><td>${statusPill(o.status)}</td></tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+
+/* ---------------- MODERATION QUEUE ---------------- */
+function pageModeration(){
+  return `
+    <div class="page-head"><h1>Moderation queue</h1><p>Flagged reviews awaiting a decision</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Case</th><th>Order</th><th>Reviewer</th><th>Reviewed</th><th>Status</th></tr>
+        ${CASES.map(c=>`
+          <tr class="clickable" onclick="openCase('${c.id}')">
+            <td>#${c.id}</td><td>${c.order}</td><td>${c.reviewer.name}</td><td>${c.reviewed.name}</td><td>${statusPill(c.status)}</td>
+          </tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+function openCase(id){ state.selectedCase = CASES.find(c=>c.id===id); render(); }
+
+function pageCaseDetail(){
+  const c = state.selectedCase;
+  return `
+    <button class="back-link" onclick="goPage('moderation')">${svg('back',14)} Back to queue</button>
+    <div class="page-head"><h1>Case #${c.id}</h1><p>Order ${c.order} &middot; ${statusPill(c.status)}</p></div>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <p class="sub-label">REVIEWER</p>
+        <p style="font-size:13.5px;font-weight:500;margin-bottom:2px;">${c.reviewer.name}</p>
+        <p style="font-size:11px;color:var(--ink-light);margin-bottom:10px;">${c.reviewer.orders} completed orders &middot; joined ${c.reviewer.joined}</p>
+        <p style="font-size:11px;color:var(--ink-faint);margin-bottom:4px;">Rating left</p>
+        <p style="font-size:13px;color:var(--rose-dark);margin-bottom:12px;">${c.reviewer.quote}</p>
+        <textarea rows="3" placeholder="Notes from your call with ${c.reviewer.name.split(' ')[0]}..."></textarea>
+      </div>
+      <div class="detail-card">
+        <p class="sub-label">REVIEWED</p>
+        <p style="font-size:13.5px;font-weight:500;margin-bottom:2px;">${c.reviewed.name}</p>
+        <p style="font-size:11px;color:var(--ink-light);margin-bottom:10px;">${c.reviewed.orders} completed orders &middot; joined ${c.reviewed.joined}</p>
+        <p style="font-size:11px;color:var(--ink-faint);margin-bottom:4px;">History</p>
+        <p style="font-size:12px;margin-bottom:12px;">Average rating ${c.reviewed.avg} &middot; ${c.reviewed.priorFlags} prior flag(s)</p>
+        <textarea rows="3" placeholder="Notes from your call with ${c.reviewed.name.split(' ')[0]}..."></textarea>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:16px;">
+      <button class="btn solid" onclick="resolveCase('${c.id}','coach')">Coach ${c.reviewed.name.split(' ')[0]}</button>
+      <button class="btn outline" onclick="resolveCase('${c.id}','warn')">Escalate to warning</button>
+      <button class="btn ghost" onclick="resolveCase('${c.id}','flag-reviewer')">Flag ${c.reviewer.name.split(' ')[0]} instead</button>
+      <button class="btn ghost" onclick="resolveCase('${c.id}','dismiss')">Dismiss case</button>
+    </div>
+  `;
+}
+function resolveCase(id, action){
+  const c = CASES.find(x=>x.id===id);
+  if(c){ c.status = 'Resolved — ' + action; }
+  goPage('moderation');
+}
+
+/* ---------------- CHATS ---------------- */
+function pageChats(){
+  return `
+    <div class="page-head"><h1>Chats</h1><p>Every conversation is visible to your team by default, per the community guidelines users agree to</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Order</th><th>Between</th><th>Delivery method</th><th>Delivery link</th><th>Status</th></tr>
+        ${THREADS.map(t=>{
+          const autoFlag = t.messages.some(m=>checkFlagged(m.text));
+          return `
+          <tr class="clickable" onclick="openThread('${t.id}')">
+            <td>${t.order}</td><td>${t.a} &amp; ${t.b}</td><td>${t.deliveryMethod}</td>
+            <td>${t.deliveryLink?svg('link',13)+' on file':'—'}</td>
+            <td>${t.reported?'<span class="pill warn">Reported</span> ':''}${autoFlag?'<span class="pill danger">Auto-flagged</span>':(t.reported?'':'<span class="pill ok">No reports</span>')}</td>
+          </tr>`;}).join('')}
+      </table>
+    </div>
+  `;
+}
+function openThread(id){ state.selectedThread = THREADS.find(t=>t.id===id); render(); }
+function pageThreadDetail(){
+  const t = state.selectedThread;
+  return `
+    <button class="back-link" onclick="goPage('chats')">${svg('back',14)} Back to chats</button>
+    <div class="page-head"><h1>${t.a} &amp; ${t.b}</h1><p>Order ${t.order} ${t.reported?'&middot; <span style="color:var(--danger-ink);">reported by a participant</span>':''}</p></div>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <p class="sub-label">CONVERSATION</p>
+        <div style="display:flex;flex-direction:column;gap:9px;margin-top:8px;">
+          ${t.messages.map(m=>`
+            <div style="align-self:${m.who==='a'?'flex-start':'flex-end'};max-width:80%;">
+              <p style="font-size:10px;color:var(--ink-faint);margin:0 0 2px;${m.who==='b'?'text-align:right;':''}">${m.who==='a'?t.a:t.b}</p>
+              <div style="background:${m.who==='a'?'var(--bg)':'var(--rose-soft)'};border:0.5px solid var(--line);border-radius:10px;padding:7px 11px;font-size:12.5px;" class="${checkFlagged(m.text)?'flagged-msg':''}">${m.text}</div>
+              ${checkFlagged(m.text)?`<div class="flag-tag" style="${m.who==='b'?'justify-content:flex-end;display:flex;':''}">${svg('flag',11)} Flagged language detected</div>`:''}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="detail-card">
+        <p class="sub-label">DELIVERY RECORD</p>
+        ${t.deliveryLink ? `
+          <p style="font-size:12.5px;margin-bottom:4px;"><b>${t.deliveryMethod}</b></p>
+          <p style="font-size:11.5px;color:var(--ink-light);margin-bottom:14px;word-break:break-all;">${t.deliveryLink}</p>
+          <p style="font-size:11px;color:var(--ink-faint);">Saved automatically when shared in chat — visible here regardless of whether this thread was ever reported.</p>
+        ` : `
+          <p style="font-size:12.5px;color:var(--ink-light);">Meetup arranged directly — no delivery link on this order.</p>
+        `}
+        <div class="btn-row" style="margin-top:16px;">
+          <button class="btn outline" onclick="alert('Would open a moderation case for this thread')">Open a case from this chat</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------------- APPEALS ---------------- */
+function pageAppeals(){
+  return `
+    <div class="page-head"><h1>Appeals</h1><p>Reviewed by a different moderator than the original decision</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>User</th><th>Regarding</th><th>Submitted</th><th>Status</th></tr>
+        ${APPEALS.map(a=>`
+          <tr class="clickable" onclick="openAppeal('${a.id}')">
+            <td>${a.user}</td><td>${a.case}</td><td>${a.submitted}</td><td>${statusPill(a.status)}</td>
+          </tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+function openAppeal(id){ state.selectedAppeal = APPEALS.find(a=>a.id===id); render(); }
+function pageAppealDetail(){
+  const a = state.selectedAppeal;
+  return `
+    <button class="back-link" onclick="goPage('appeals')">${svg('back',14)} Back to appeals</button>
+    <div class="page-head"><h1>Appeal from ${a.user}</h1><p>${a.case} &middot; submitted ${a.submitted}</p></div>
+    <div class="detail-card" style="max-width:520px;">
+      <p class="sub-label">THEIR STATEMENT</p>
+      <p style="font-size:13px;line-height:1.6;margin-bottom:16px;">${a.text}</p>
+      <p class="sub-label">YOUR DECISION</p>
+      <textarea rows="3" placeholder="Reason for your decision (shared with the user)"></textarea>
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn solid" onclick="resolveAppeal('${a.id}','overturned')">Overturn restriction</button>
+        <button class="btn ghost" onclick="resolveAppeal('${a.id}','upheld')">Uphold restriction</button>
+      </div>
+    </div>
+  `;
+}
+function resolveAppeal(id, outcome){
+  const a = APPEALS.find(x=>x.id===id);
+  if(a){ a.status = outcome==='overturned' ? 'Overturned' : 'Upheld'; }
+  goPage('appeals');
+}
+
+/* ---------------- REVIEWS ---------------- */
+function pageReviews(){
+  const reviews = [
+    {item:'Curly hair mask', from:'Amira R.', to:'Basma T.', rating:'★★☆☆☆', flagged:true},
+    {item:'Linen midi dress', from:'Nourhan K.', to:'Salma H.', rating:'★★★★★', flagged:false},
+    {item:'Denim jacket', from:'Salma H.', to:'Nourhan K.', rating:'★★★★☆', flagged:false},
+  ];
+  return `
+    <div class="page-head"><h1>Reviews</h1><p>All product and person reviews, flagged ones surfaced first</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Item</th><th>From</th><th>To</th><th>Rating</th><th>Status</th></tr>
+        ${reviews.sort((a,b)=>b.flagged-a.flagged).map(r=>`
+          <tr><td>${r.item}</td><td>${r.from}</td><td>${r.to}</td><td style="color:var(--rose-dark);">${r.rating}</td>
+          <td>${r.flagged?'<span class="pill warn">Flagged</span>':'<span class="pill ok">Clear</span>'}</td></tr>`).join('')}
+      </table>
+    </div>
+  `;
+}
+
+/* ---------------- ADS ---------------- */
+function pageAds(){
+  return `
+    <div class="page-head"><h1>Ads</h1><p>Manually managed sponsored placements</p></div>
+    <div class="panel">
+      <table>
+        <tr><th>Placement</th><th>Brand</th><th>Dates</th><th>Status</th></tr>
+        ${AD_SLOTS.map(a=>`
+          <tr><td>${a.slot}</td><td>${a.brand}</td><td>${a.dates}</td><td>${statusPill(a.status)}</td></tr>`).join('')}
+      </table>
+    </div>
+    <button class="btn solid" onclick="addAdSlot()">+ New placement</button>
+  `;
+}
+function addAdSlot(){
+  AD_SLOTS.push({id:'ad'+(AD_SLOTS.length+1), slot:'In-feed sponsored card', brand:'New brand', dates:'TBD', status:'Scheduled'});
+  render();
+}
+
+/* ---------------- SEARCH ---------------- */
+function onSearch(q){
+  const box = document.getElementById('search-results');
+  q = q.trim().toLowerCase();
+  if(!q){ box.classList.remove('open'); box.innerHTML=''; return; }
+  const results = [];
+  ORDERS.forEach(o=>{ if(o.id.toLowerCase().includes(q) || o.buyer.toLowerCase().includes(q) || o.seller.toLowerCase().includes(q))
+    results.push({label:`${o.id} — ${o.item}`, sub:`Order · ${o.buyer} & ${o.seller}`, action:()=>{ goPage('orders'); }}); });
+  USERS.forEach(u=>{ if(u.name.toLowerCase().includes(q))
+    results.push({label:u.name, sub:`User · ${u.standing}`, action:()=>{ goPage('users'); }}); });
+  CASES.forEach(c=>{ if(('case '+c.id).includes(q) || c.reviewer.name.toLowerCase().includes(q) || c.reviewed.name.toLowerCase().includes(q))
+    results.push({label:`Case #${c.id}`, sub:`Moderation · ${c.reviewer.name} → ${c.reviewed.name}`, action:()=>{ state.page='moderation'; openCase(c.id); }}); });
+  REPORTS.forEach(r=>{ if(r.item.toLowerCase().includes(q) || r.seller.toLowerCase().includes(q))
+    results.push({label:r.item, sub:`Reported listing · ${r.seller}`, action:()=>{ state.page='reports'; openReport(r.id); }}); });
+  if(!results.length){ box.innerHTML = '<div class="r" style="color:var(--ink-faint);">No matches</div>'; box.classList.add('open'); return; }
+  box.innerHTML = results.slice(0,6).map((r,i)=>`<div class="r" onclick="runSearchResult(${i})"><div>${r.label}</div><div class="type">${r.sub}</div></div>`).join('');
+  window._searchResults = results;
+  box.classList.add('open');
+}
+function runSearchResult(i){
+  document.getElementById('search-results').classList.remove('open');
+  document.getElementById('search-input').value = '';
+  window._searchResults[i].action();
+}
+
+/* ---------------- FLAGGED LANGUAGE ---------------- */
+const FLAGGED_WORDS = ['stupid','idiot','shut up','hate you','worthless'];
+function checkFlagged(text){
+  const lower = text.toLowerCase();
+  return FLAGGED_WORDS.some(w=>lower.includes(w));
+}
+
+/* ---------------- INIT ---------------- */
+document.addEventListener('click', function(e){
+  if(!e.target.closest('.search-wrap')){
+    const box = document.getElementById('search-results');
+    if(box) box.classList.remove('open');
+  }
+});
+render();
+</script>
+</body>
+</html>
