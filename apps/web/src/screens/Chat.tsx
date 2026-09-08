@@ -18,10 +18,16 @@ const DELIVERY_LABELS: Record<string, string> = {
   BostaMylerz: 'Bosta / Mylerz'
 };
 
+const DELIVERY_METHODS = [
+  { value: 'Meetup', label: 'Meetup', note: 'Arrange to meet in your shared area' },
+  { value: 'UberCourier', label: 'Uber Courier', note: 'Book directly with Uber, share the tracking link in chat' },
+  { value: 'InDrive', label: 'inDrive Delivery', note: 'Book directly with inDrive, share the tracking link in chat' }
+];
+
 interface OrderSummary {
   id: string;
   amount: number;
-  deliveryMethod: string;
+  deliveryMethod: string | null;
   escrowStatus: string;
   listing: { title: string; images: string[] };
   buyer: { id: string; fullName: string };
@@ -42,17 +48,21 @@ interface InquirySummary {
 export function Chat({
   initialOrderId,
   initialInquiryId,
+  initialSupport,
   onOpenOrder,
-  onOpenInquiry
+  onOpenInquiry,
+  onOpenSupport: onLeaveSupport
 }: {
   initialOrderId?: string | null;
   initialInquiryId?: string | null;
+  initialSupport?: boolean;
   onOpenOrder?: () => void;
   onOpenInquiry?: () => void;
+  onOpenSupport?: () => void;
 }) {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(initialOrderId ?? null);
   const [activeInquiryId, setActiveInquiryId] = useState<string | null>(initialInquiryId ?? null);
-  const [showSupport, setShowSupport] = useState(false);
+  const [showSupport, setShowSupport] = useState(Boolean(initialSupport));
 
   useEffect(() => {
     if (initialOrderId) setActiveOrderId(initialOrderId);
@@ -62,8 +72,12 @@ export function Chat({
     if (initialInquiryId) setActiveInquiryId(initialInquiryId);
   }, [initialInquiryId]);
 
+  useEffect(() => {
+    if (initialSupport) setShowSupport(true);
+  }, [initialSupport]);
+
   if (showSupport) {
-    return <SupportThread onBack={() => setShowSupport(false)} />;
+    return <SupportThread onBack={() => { setShowSupport(false); onLeaveSupport?.(); }} />;
   }
   if (activeOrderId) {
     return <ChatThread orderId={activeOrderId} onBack={() => { setActiveOrderId(null); onOpenOrder?.(); }} />;
@@ -410,6 +424,18 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
     }
   }
 
+  async function chooseDeliveryMethod(deliveryMethod: string) {
+    setBusy(true);
+    try {
+      await api.post(`/api/orders/${orderId}/delivery-method`, { deliveryMethod });
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!order) return <div className="empty-state">{error || 'Loading…'}</div>;
 
   const isBuyer = user?.id === order.buyer.id;
@@ -422,11 +448,26 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
         <button onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
         <div>
           <div className="t-name">{other.fullName}</div>
-          <div className="t-sub">{order.listing.title} &middot; {order.amount} EGP &middot; {DELIVERY_LABELS[order.deliveryMethod]}</div>
+          <div className="t-sub">
+            {order.listing.title} &middot; {order.amount} EGP
+            {order.deliveryMethod && <> &middot; {DELIVERY_LABELS[order.deliveryMethod]}</>}
+          </div>
         </div>
       </div>
       <div className="mod-banner"><Icon name="flag" size={12} /> Conversations on Second Look may be reviewed for safety.</div>
 
+      {!order.deliveryMethod ? (
+        <div className="plain-card" style={{ margin: '10px 18px 0' }}>
+          <div className="sub">How will this item get to you?</div>
+          <div className="delivery-pills" style={{ marginTop: 8 }}>
+            {DELIVERY_METHODS.map((m) => (
+              <button key={m.value} type="button" className="delivery-pill" disabled={busy} onClick={() => chooseDeliveryMethod(m.value)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
       <div className="plain-card" style={{ margin: '10px 18px 0' }}>
         <div className="sub">Order status: <strong>{ORDER_STATUS_LABELS[order.escrowStatus] ?? order.escrowStatus}</strong></div>
         {order.trackingLinks.length > 0 && (
@@ -455,6 +496,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
           </div>
         )}
       </div>
+      )}
 
       {showMonetizationPrompt && (
         <div className="plain-card">

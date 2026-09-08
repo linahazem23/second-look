@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { Icon, categoryIcon } from '../Icon.js';
 import { useAuth } from '../AuthContext.js';
-import { BuyPanel } from './BuyPanel.js';
 import { MultiImageUpload } from '../ImageUpload.js';
 import { ReportListingModal } from './ReportListingModal.js';
 import { LocationAreaField } from '../LocationArea.js';
@@ -36,9 +35,21 @@ interface Listing {
 
 export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrderCreated?: (orderId: string) => void; onMessageSeller?: (inquiryId: string) => void; onViewProfile?: (userId: string) => void }) {
   const { user } = useAuth();
-  const [buyTarget, setBuyTarget] = useState<Listing | null>(null);
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
+  const [buyingId, setBuyingId] = useState<string | null>(null);
+
+  async function buyNow(item: Listing) {
+    setBuyingId(item.id);
+    try {
+      const res = await api.post('/api/orders', { listingId: item.id });
+      onOrderCreated?.(res.order.id);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBuyingId(null);
+    }
+  }
 
   async function messageSeller(item: Listing) {
     setMessagingId(item.id);
@@ -178,14 +189,6 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
 
       {showSellForm && <SellForm onPosted={() => { setShowSellForm(false); load(); }} />}
 
-      {buyTarget && (
-        <BuyPanel
-          listing={buyTarget}
-          onClose={() => setBuyTarget(null)}
-          onBought={(orderId) => { setBuyTarget(null); onOrderCreated?.(orderId); }}
-        />
-      )}
-
       {reportTarget && (
         <ReportListingModal
           listingId={reportTarget.id}
@@ -229,7 +232,9 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
                   )}
                   <div className="card-actions" style={{ marginTop: 8 }}>
                     {item.seller.id !== user?.id ? (
-                      <button className="btn-outline" onClick={() => setBuyTarget(item)}>Buy</button>
+                      <button className="btn-outline" disabled={buyingId === item.id} onClick={() => buyNow(item)}>
+                        {buyingId === item.id ? 'Starting…' : 'Buy'}
+                      </button>
                     ) : (
                       !item.boosted && (
                         <button className="btn-outline" onClick={() => boostListing(item.id)}>Boost (25 EGP)</button>

@@ -95,6 +95,7 @@ model User {
   videoSubmissions    VideoSubmission[]
   inquiriesAsBuyer    Inquiry[]     @relation("InquiriesAsBuyer")
   inquiriesAsSeller   Inquiry[]     @relation("InquiriesAsSeller")
+  communityProductReviews CommunityProductReview[]
 }
 
 model VideoSubmission {
@@ -197,7 +198,7 @@ model Order {
   listingId         String
   listing           Listing             @relation(fields: [listingId], references: [id])
   amount            Float
-  deliveryMethod    DeliveryMethod
+  deliveryMethod    DeliveryMethod?
   escrowStatus      OrderEscrowStatus   @default(InEscrow)
   deliveryConfirmed Boolean            @default(false)
   deliveryConfirmedAt DateTime?
@@ -250,6 +251,21 @@ model Review {
   fraudSignals          String[]
   disputeStatus         String      @default("none")
   disputeNote           String?
+}
+
+// Open community review of a product/brand, unlinked to any specific order —
+// anyone can leave one instantly, unlike the order-gated Review.type=Product
+// flow above. Kept as its own model so the escrow-linked Review's required
+// orderId/reviewedUserId never need to become optional for this to exist.
+model CommunityProductReview {
+  id              String   @id @default(cuid())
+  authorId        String
+  author          User     @relation(fields: [authorId], references: [id])
+  productIdentity String
+  starRating      Int
+  photoUrls       String[]
+  notes           String?
+  createdAt       DateTime @default(now())
 }
 
 model ListingReport {

@@ -11,18 +11,14 @@ const REVIEW_UNLOCK_WAIT_DAYS = 6;
 const SELLER_PLUS_OFFER_THRESHOLD = 5;
 
 const createOrderSchema = z.object({
-  listingId: z.string().min(1),
-  deliveryMethod: z.enum(DELIVERY_METHODS)
+  listingId: z.string().min(1)
 });
 
+// Delivery method is chosen afterwards, from inside the order chat — Buy only
+// starts the payment hold and connects buyer and seller.
 ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
-
-  // BostaMylerz integration is "coming soon" per spec — not a live delivery option yet.
-  if (parsed.data.deliveryMethod === 'BostaMylerz') {
-    return res.status(422).json({ error: 'Integrated courier delivery is coming soon and not yet available.' });
-  }
 
   const listing = await prisma.listing.findUnique({ where: { id: parsed.data.listingId } });
   if (!listing || listing.status !== 'Active') return res.status(409).json({ error: 'Listing is not available' });
@@ -34,8 +30,7 @@ ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, 
         buyerId: req.userId!,
         sellerId: listing.sellerId,
         listingId: listing.id,
-        amount: listing.price,
-        deliveryMethod: parsed.data.deliveryMethod
+        amount: listing.price
       }
     }),
     // Deal is finalized at payment/escrow, so the listing comes off the active feed immediately.
@@ -43,6 +38,25 @@ ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, 
   ]);
 
   return res.status(201).json({ order });
+});
+
+const deliveryMethodSchema = z.object({ deliveryMethod: z.enum(DELIVERY_METHODS) });
+
+ordersRouter.post('/:id/delivery-method', requireAuth, async (req: AuthedRequest, res) => {
+  const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.buyerId !== req.userId && order.sellerId !== req.userId) return res.status(403).json({ error: 'Not your order' });
+
+  const parsed = deliveryMethodSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  // BostaMylerz integration is "coming soon" per spec — not a live delivery option yet.
+  if (parsed.data.deliveryMethod === 'BostaMylerz') {
+    return res.status(422).json({ error: 'Integrated courier delivery is coming soon and not yet available.' });
+  }
+
+  const updated = await prisma.order.update({ where: { id: order.id }, data: { deliveryMethod: parsed.data.deliveryMethod } });
+  return res.json({ order: updated });
 });
 
 ordersRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {

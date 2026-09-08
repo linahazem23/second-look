@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { api, friendlyError } from '../api.js';
 
-function Stars({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+export function Stars({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
     <div className="stars" style={{ cursor: 'pointer' }}>
       {[1, 2, 3, 4, 5].map((n) => (

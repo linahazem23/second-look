@@ -3,10 +3,38 @@ import { z } from 'zod';
 import type { Order } from '@prisma/client';
 import { prisma } from '../lib/db.js';
 import { requireAuth, type AuthedRequest } from '../lib/auth.js';
+import { requireVerified } from '../lib/access.js';
 
 export const reviewsRouter = Router();
 
 const PERSON_REVIEW_REVEAL_WAIT_DAYS = 7;
+
+const communityReviewSchema = z.object({
+  productIdentity: z.string().min(1),
+  starRating: z.number().int().min(1).max(5),
+  photoUrls: z.array(z.string().min(1)).max(6).default([]),
+  notes: z.string().max(2000).optional()
+});
+
+// Open to any verified member instantly — no purchase or order required, unlike
+// the buyer-only Review.type=Product flow above. This is the "community" side
+// of product reviews: quick, unlinked, meant for open discussion of a product.
+reviewsRouter.post('/community', requireAuth, requireVerified, async (req: AuthedRequest, res) => {
+  const parsed = communityReviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const review = await prisma.communityProductReview.create({
+    data: {
+      authorId: req.userId!,
+      productIdentity: parsed.data.productIdentity,
+      starRating: parsed.data.starRating,
+      photoUrls: parsed.data.photoUrls,
+      notes: parsed.data.notes
+    }
+  });
+
+  return res.status(201).json({ review });
+});
 
 reviewsRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
   const [received, given] = await Promise.all([
@@ -119,27 +147,64 @@ reviewsRouter.post('/product', requireAuth, async (req: AuthedRequest, res) => {
   return res.status(201).json({ review });
 });
 
+// Normalizes the two review sources (order-verified purchase reviews and
+// instant community reviews) into one shape so the public products list
+// doesn't need to care which table a review came from.
+function normalizeOrderReview(r: { id: string; starRating: number | null; notes: string | null; beforePhotoUrl: string | null; afterPhotoUrl: string | null; usageDuration: string | null; createdAt: Date }) {
+  return {
+    id: r.id,
+    source: 'verified_purchase' as const,
+    starRating: r.starRating,
+    photos: [r.beforePhotoUrl, r.afterPhotoUrl].filter((p): p is string => Boolean(p)),
+    notes: r.notes,
+    usageDuration: r.usageDuration,
+    createdAt: r.createdAt
+  };
+}
+
+function normalizeCommunityReview(r: { id: string; starRating: number; notes: string | null; photoUrls: string[]; createdAt: Date }) {
+  return {
+    id: r.id,
+    source: 'community' as const,
+    starRating: r.starRating,
+    photos: r.photoUrls,
+    notes: r.notes,
+    usageDuration: null,
+    createdAt: r.createdAt
+  };
+}
+
 reviewsRouter.get('/products', async (req, res) => {
   const q = (req.query.q as string | undefined)?.trim();
-  const reviews = await prisma.review.findMany({
-    where: { type: 'Product', ...(q ? { productIdentity: { contains: q, mode: 'insensitive' } } : {}) },
-    orderBy: { createdAt: 'desc' }
-  });
+  const productFilter = q ? { productIdentity: { contains: q, mode: 'insensitive' as const } } : {};
 
-  const byProduct = new Map<string, typeof reviews>();
-  for (const r of reviews) {
+  const [orderReviews, communityReviews] = await Promise.all([
+    prisma.review.findMany({ where: { type: 'Product', ...productFilter }, orderBy: { createdAt: 'desc' } }),
+    prisma.communityProductReview.findMany({ where: productFilter, orderBy: { createdAt: 'desc' } })
+  ]);
+
+  type NormalizedReview = ReturnType<typeof normalizeOrderReview> | ReturnType<typeof normalizeCommunityReview>;
+  const byProduct = new Map<string, NormalizedReview[]>();
+  for (const r of orderReviews) {
     const key = r.productIdentity ?? 'Unknown';
     if (!byProduct.has(key)) byProduct.set(key, []);
-    byProduct.get(key)!.push(r);
+    byProduct.get(key)!.push(normalizeOrderReview(r));
+  }
+  for (const r of communityReviews) {
+    if (!byProduct.has(r.productIdentity)) byProduct.set(r.productIdentity, []);
+    byProduct.get(r.productIdentity)!.push(normalizeCommunityReview(r));
   }
 
-  const products = Array.from(byProduct.entries()).map(([productIdentity, rows]) => ({
-    productIdentity,
-    count: rows.length,
-    avgRating: rows.reduce((sum, r) => sum + (r.starRating ?? 0), 0) / rows.length,
-    latestNote: rows[0]?.notes ?? null,
-    latestPhoto: rows[0]?.afterPhotoUrl ?? null
-  }));
+  const products = Array.from(byProduct.entries()).map(([productIdentity, rows]) => {
+    rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return {
+      productIdentity,
+      count: rows.length,
+      avgRating: rows.reduce((sum, r) => sum + (r.starRating ?? 0), 0) / rows.length,
+      latestNote: rows[0]?.notes ?? null,
+      latestPhoto: rows[0]?.photos[0] ?? null
+    };
+  });
 
   return res.json({ products });
 });
@@ -149,9 +214,15 @@ reviewsRouter.get('/product', async (req, res) => {
   if (!productIdentity) return res.status(400).json({ error: 'productIdentity query param is required' });
 
   // All reviews for a given canonical product share one pool, regardless of which
-  // listing/seller they came from — this is the aggregation the fuzzy-matched
-  // product-identity field exists to support.
-  const reviews = await prisma.review.findMany({ where: { type: 'Product', productIdentity }, orderBy: { createdAt: 'desc' } });
+  // listing/seller (or no listing at all) they came from — this is the aggregation
+  // the fuzzy-matched product-identity field exists to support.
+  const [orderReviews, communityReviews] = await Promise.all([
+    prisma.review.findMany({ where: { type: 'Product', productIdentity }, orderBy: { createdAt: 'desc' } }),
+    prisma.communityProductReview.findMany({ where: { productIdentity }, orderBy: { createdAt: 'desc' } })
+  ]);
+
+  const reviews = [...orderReviews.map(normalizeOrderReview), ...communityReviews.map(normalizeCommunityReview)]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const avgRating = reviews.length
     ? reviews.reduce((sum, r) => sum + (r.starRating ?? 0), 0) / reviews.length
     : null;

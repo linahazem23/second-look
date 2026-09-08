@@ -1,12 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { getToken } from './api.js';
+import { ImageCropModal } from './ImageCropper.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:4000';
 const MAX_IMAGES = 6;
 
-export async function uploadFile(file: File): Promise<string> {
+export async function uploadFile(file: File | Blob): Promise<string> {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', file, 'photo.jpg');
   const res = await fetch(`${API_BASE}/api/uploads`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${getToken()}` },
@@ -22,12 +23,14 @@ export function ImageUpload({ value, onChange }: { value: string | null; onChang
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
 
-  async function handleFile(file: File) {
+  async function handleCropped(blob: Blob) {
+    setCropFile(null);
     setBusy(true);
     setError(null);
     try {
-      onChange(await uploadFile(file));
+      onChange(await uploadFile(blob));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -54,31 +57,33 @@ export function ImageUpload({ value, onChange }: { value: string | null; onChang
         style={{ display: 'none' }}
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) handleFile(file);
+          if (file) setCropFile(file);
           e.target.value = '';
         }}
       />
+      {cropFile && (
+        <ImageCropModal file={cropFile} onCancel={() => setCropFile(null)} onCropped={handleCropped} />
+      )}
       {error && <p className="field-error">{error}</p>}
     </div>
   );
 }
 
-// Multi-photo upload for listings — every photo renders in the same square crop
-// so the grid stays consistent regardless of the source image's shape.
+// Multi-photo upload for listings — every photo is cropped to a square before
+// upload, so the grid stays consistent regardless of the source image's shape.
 export function MultiImageUpload({ value, onChange }: { value: string[]; onChange: (urls: string[]) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queue, setQueue] = useState<File[]>([]);
 
-  async function handleFiles(files: FileList) {
-    const room = MAX_IMAGES - value.length;
-    const toUpload = Array.from(files).slice(0, room);
-    if (toUpload.length === 0) return;
+  async function handleCropped(blob: Blob) {
+    setQueue((q) => q.slice(1));
     setBusy(true);
     setError(null);
     try {
-      const urls = await Promise.all(toUpload.map(uploadFile));
-      onChange([...value, ...urls]);
+      const url = await uploadFile(blob);
+      onChange([...value, url]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -112,11 +117,21 @@ export function MultiImageUpload({ value, onChange }: { value: string[]; onChang
         multiple
         style={{ display: 'none' }}
         onChange={(e) => {
-          if (e.target.files?.length) handleFiles(e.target.files);
+          if (e.target.files?.length) {
+            const room = MAX_IMAGES - value.length;
+            setQueue(Array.from(e.target.files).slice(0, room));
+          }
           e.target.value = '';
         }}
       />
-      <p className="discount-hint">{value.length}/{MAX_IMAGES} photos &middot; square crop, matching how they'll appear in listings</p>
+      {queue.length > 0 && (
+        <ImageCropModal
+          file={queue[0]}
+          onCancel={() => setQueue((q) => q.slice(1))}
+          onCropped={handleCropped}
+        />
+      )}
+      <p className="discount-hint">{value.length}/{MAX_IMAGES} photos &middot; drag to reposition, then crop to a square</p>
       {error && <p className="field-error">{error}</p>}
     </div>
   );

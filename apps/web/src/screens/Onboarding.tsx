@@ -144,7 +144,7 @@ export function ProfileQuizGate({ onDone }: { onDone: () => void }) {
   );
 }
 
-const HOW_TO_STEPS = [
+export const HOW_TO_STEPS = [
   'Get verified once (ID + selfie) — this unlocks buying, selling, and posting.',
   'Browse Skincare, Makeup, or Clothes on Home, or check Explore for listings near you.',
   'Found something? Tap Buy to start an order — your payment is held safely until you confirm delivery.',

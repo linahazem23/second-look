@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { useAuth } from './AuthContext.js';
 import { Auth } from './screens/Auth.js';
-import { KycGate, ProfileQuizGate, GuidelinesGate } from './screens/Onboarding.js';
+import { KycGate, ProfileQuizGate, GuidelinesGate, HOW_TO_STEPS } from './screens/Onboarding.js';
 import { PublicProfile } from './screens/PublicProfile.js';
 import { Home } from './screens/Home.js';
 import { Want } from './screens/Want.js';
@@ -23,6 +23,7 @@ export function App() {
   const [menuView, setMenuView] = useState<MenuView>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [pendingInquiryId, setPendingInquiryId] = useState<string | null>(null);
+  const [pendingSupport, setPendingSupport] = useState(false);
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
   const [hasUnreadChats, setHasUnreadChats] = useState(false);
 
@@ -108,6 +109,12 @@ export function App() {
     setTab('chat');
   }
 
+  function goToSupport() {
+    setPendingSupport(true);
+    setMenuView(null);
+    setTab('chat');
+  }
+
   return (
     <div id="phone">
       <header className="topbar">
@@ -124,7 +131,7 @@ export function App() {
           <>
         {menuView === 'reviews' && <Reviews onBack={() => setMenuView(null)} />}
         {menuView === 'profile' && <Profile onBack={() => setMenuView(null)} />}
-        {menuView === 'guidelines' && <GuidelinesView onBack={() => setMenuView(null)} />}
+        {menuView === 'guidelines' && <GuidelinesView onBack={() => setMenuView(null)} onContactSupport={goToSupport} />}
 
         {menuView === null && (
           <>
@@ -136,8 +143,10 @@ export function App() {
               <Chat
                 initialOrderId={pendingOrderId}
                 initialInquiryId={pendingInquiryId}
+                initialSupport={pendingSupport}
                 onOpenOrder={() => setPendingOrderId(null)}
                 onOpenInquiry={() => setPendingInquiryId(null)}
+                onOpenSupport={() => setPendingSupport(false)}
               />
             )}
           </>
@@ -244,7 +253,7 @@ const GUIDELINE_TEXT = [
   ['Report, don’t retaliate', 'If something feels off, report it. Harassment or threats lead to an immediate block.']
 ];
 
-function GuidelinesView({ onBack }: { onBack: () => void }) {
+function GuidelinesView({ onBack, onContactSupport }: { onBack: () => void; onContactSupport: () => void }) {
   return (
     <>
       <div className="section-head">
@@ -252,6 +261,17 @@ function GuidelinesView({ onBack }: { onBack: () => void }) {
         <div>
           <h1 style={{ fontSize: 19 }}>Community guidelines</h1>
         </div>
+      </div>
+      <div className="plain-card">
+        <h3>How Second Look works</h3>
+        <ol className="how-to-list">
+          {HOW_TO_STEPS.map((step, i) => <li key={i}>{step}</li>)}
+        </ol>
+      </div>
+      <div className="plain-card">
+        <h3>Need help?</h3>
+        <div className="sub">Reach Second Look Support directly, any time.</div>
+        <button className="btn-outline" style={{ marginTop: 10 }} onClick={onContactSupport}>Contact Support</button>
       </div>
       {GUIDELINE_TEXT.map(([title, body]) => (
         <div className="plain-card" key={title}>
