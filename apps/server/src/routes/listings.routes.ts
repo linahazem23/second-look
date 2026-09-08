@@ -43,7 +43,7 @@ listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
   const where: any = { status: 'Active' };
   if (q) where.title = { contains: q, mode: 'insensitive' };
   if (category) where.category = category;
-  if (size) where.size = size;
+  if (size) where.size = { in: [size, 'One Size'] };
   if (condition) where.condition = condition;
   if (area) where.area = area;
   if (allowOffers !== undefined) where.allowOffers = allowOffers === 'true';

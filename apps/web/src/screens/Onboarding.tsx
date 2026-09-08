@@ -144,9 +144,19 @@ export function ProfileQuizGate({ onDone }: { onDone: () => void }) {
   );
 }
 
+const HOW_TO_STEPS = [
+  'Get verified once (ID + selfie) — this unlocks buying, selling, and posting.',
+  'Browse Skincare, Makeup, or Clothes on Home, or check Explore for listings near you.',
+  'Found something? Tap Buy to start an order — your payment is held safely until you confirm delivery.',
+  'Selling? Tap "+ Sell an item", add photos, a price below the original, and your area.',
+  'Chat with the buyer or seller to arrange meetup or delivery — it stays saved on that order.',
+  'Something feels wrong? Report it from the listing, the chat, or message Support any time.'
+];
+
 export function GuidelinesGate({ onDone }: { onDone: () => void }) {
   const [slideIndex, setSlideIndex] = useState(0);
   const [agreedThisSlide, setAgreedThisSlide] = useState(false);
+  const [showHowTo, setShowHowTo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -157,7 +167,7 @@ export function GuidelinesGate({ onDone }: { onDone: () => void }) {
       const res = await api.post('/api/auth/guidelines/accept-slide', { slideIndex });
       setAgreedThisSlide(false);
       if (res.allFourSlidesComplete) {
-        onDone();
+        setShowHowTo(true);
       } else {
         setSlideIndex((i) => i + 1);
       }
@@ -166,6 +176,28 @@ export function GuidelinesGate({ onDone }: { onDone: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (showHowTo) {
+    return (
+      <div id="onboarding">
+        <div className="ob-body">
+          <div className="ob-icon-circle">
+            <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18 }}>✓</span>
+          </div>
+          <h1>How Second Look works</h1>
+          <ol className="how-to-list">
+            {HOW_TO_STEPS.map((step, i) => <li key={i}>{step}</li>)}
+          </ol>
+          <p className="lead" style={{ marginTop: 16, fontSize: 12.5 }}>
+            Need help any time? Open Chat &rarr; Second Look Support to reach us directly.
+          </p>
+        </div>
+        <div className="ob-footer">
+          <button onClick={onDone}>Let's go</button>
+        </div>
+      </div>
+    );
   }
 
   const slide = GUIDELINE_SLIDES[slideIndex];

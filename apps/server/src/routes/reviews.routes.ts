@@ -119,6 +119,31 @@ reviewsRouter.post('/product', requireAuth, async (req: AuthedRequest, res) => {
   return res.status(201).json({ review });
 });
 
+reviewsRouter.get('/products', async (req, res) => {
+  const q = (req.query.q as string | undefined)?.trim();
+  const reviews = await prisma.review.findMany({
+    where: { type: 'Product', ...(q ? { productIdentity: { contains: q, mode: 'insensitive' } } : {}) },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  const byProduct = new Map<string, typeof reviews>();
+  for (const r of reviews) {
+    const key = r.productIdentity ?? 'Unknown';
+    if (!byProduct.has(key)) byProduct.set(key, []);
+    byProduct.get(key)!.push(r);
+  }
+
+  const products = Array.from(byProduct.entries()).map(([productIdentity, rows]) => ({
+    productIdentity,
+    count: rows.length,
+    avgRating: rows.reduce((sum, r) => sum + (r.starRating ?? 0), 0) / rows.length,
+    latestNote: rows[0]?.notes ?? null,
+    latestPhoto: rows[0]?.afterPhotoUrl ?? null
+  }));
+
+  return res.json({ products });
+});
+
 reviewsRouter.get('/product', async (req, res) => {
   const productIdentity = req.query.productIdentity as string | undefined;
   if (!productIdentity) return res.status(400).json({ error: 'productIdentity query param is required' });

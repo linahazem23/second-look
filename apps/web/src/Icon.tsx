@@ -13,7 +13,8 @@ const PATHS: Record<string, string> = {
   explore: '<circle cx="12" cy="10" r="3"/><path d="M12 21s7-6.5 7-11.5A7 7 0 0 0 5 9.5C5 14.5 12 21 12 21Z"/>',
   chat: '<path d="M21 12a8 8 0 1 1-3.2-6.4"/>',
   send: '<path d="M4 11 20 4l-6 16-3-7-7-2Z"/>',
-  flag: '<path d="M5 3v18"/><path d="M5 4h11l-2 4 2 4H5"/>'
+  flag: '<path d="M5 3v18"/><path d="M5 4h11l-2 4 2 4H5"/>',
+  attach: '<path d="M21.44 11.05 12.25 20.24a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48"/>'
 };
 
 export function Icon({ name, size = 20 }: { name: keyof typeof PATHS; size?: number }) {

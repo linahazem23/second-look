@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { api } from './api.js';
 import { useAuth } from './AuthContext.js';
 import { Auth } from './screens/Auth.js';
 import { KycGate, ProfileQuizGate, GuidelinesGate } from './screens/Onboarding.js';
@@ -21,7 +22,28 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<MenuView>(null);
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [pendingInquiryId, setPendingInquiryId] = useState<string | null>(null);
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
+  const [hasUnreadChats, setHasUnreadChats] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    function poll() {
+      Promise.all([api.get('/api/orders/mine'), api.get('/api/inquiries/mine')])
+        .then(([ordersRes, inquiriesRes]) => {
+          if (cancelled) return;
+          const anyUnread =
+            ordersRes.orders.some((o: { unread: boolean }) => o.unread) ||
+            inquiriesRes.inquiries.some((i: { unread: boolean }) => i.unread);
+          setHasUnreadChats(anyUnread);
+        })
+        .catch(() => {});
+    }
+    poll();
+    const interval = setInterval(poll, 20000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [user, tab]);
 
   if (loading) {
     return (
@@ -81,6 +103,11 @@ export function App() {
     setTab('chat');
   }
 
+  function goToInquiry(inquiryId: string) {
+    setPendingInquiryId(inquiryId);
+    setTab('chat');
+  }
+
   return (
     <div id="phone">
       <header className="topbar">
@@ -101,12 +128,17 @@ export function App() {
 
         {menuView === null && (
           <>
-            {tab === 'home' && <Home onOrderCreated={goToOrder} onViewProfile={setViewingProfileId} />}
+            {tab === 'home' && <Home onOrderCreated={goToOrder} onMessageSeller={goToInquiry} onViewProfile={setViewingProfileId} />}
             {tab === 'want' && <Want />}
             {tab === 'demand' && <Demand />}
             {tab === 'explore' && <Explore />}
             {tab === 'chat' && (
-              <Chat initialOrderId={pendingOrderId} onOpenOrder={() => setPendingOrderId(null)} />
+              <Chat
+                initialOrderId={pendingOrderId}
+                initialInquiryId={pendingInquiryId}
+                onOpenOrder={() => setPendingOrderId(null)}
+                onOpenInquiry={() => setPendingInquiryId(null)}
+              />
             )}
           </>
         )}
@@ -129,6 +161,7 @@ export function App() {
         </button>
         <button className={tab === 'chat' && !menuView ? 'active' : ''} onClick={() => { setTab('chat'); setMenuView(null); }}>
           <Icon name="chat" /><span>Chat</span>
+          {hasUnreadChats && <span className="nav-badge" />}
         </button>
       </nav>
 

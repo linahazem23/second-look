@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext.js';
 import { api, friendlyError } from '../api.js';
 import { Icon, categoryIcon } from '../Icon.js';
-import { ImageUpload } from '../ImageUpload.js';
+import { MultiImageUpload } from '../ImageUpload.js';
 import { Toggle } from '../Toggle.js';
 import { GrowthPanel } from './GrowthPanel.js';
 
@@ -160,7 +160,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
   const [price, setPrice] = useState(String(listing.price));
   const [originalPrice, setOriginalPrice] = useState(String(listing.originalPrice));
   const [allowOffers, setAllowOffers] = useState(listing.allowOffers);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(listing.images[0] ?? null);
+  const [photoUrls, setPhotoUrls] = useState<string[]>(listing.images ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -172,7 +172,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validPrice) return setError('Your price must be strictly lower than the original price.');
-    if (!photoUrl) return setError('At least one photo is required.');
+    if (photoUrls.length === 0) return setError('At least one photo is required.');
 
     setBusy(true);
     setError(null);
@@ -181,7 +181,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
         price: yours,
         originalPrice: original,
         allowOffers,
-        images: [photoUrl]
+        images: photoUrls
       });
       onDone();
     } catch (err) {
@@ -195,8 +195,8 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
     <form className="post-form" onSubmit={handleSubmit}>
       <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 14.5 }}>Edit "{listing.title}"</h3>
 
-      <label>Photo</label>
-      <ImageUpload value={photoUrl} onChange={setPhotoUrl} />
+      <label>Photos</label>
+      <MultiImageUpload value={photoUrls} onChange={setPhotoUrls} />
 
       <label>Original price (EGP)</label>
       <input required type="number" min={1} value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} />

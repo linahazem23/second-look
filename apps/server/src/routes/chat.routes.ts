@@ -65,7 +65,15 @@ chatRouter.get('/:orderId/messages', requireAuth, async (req: AuthedRequest, res
   return res.json({ messages, moderationNotice: 'Conversations on Second Look may be reviewed for safety.' });
 });
 
-const messageSchema = z.object({ messageText: z.string().min(1).max(2000) });
+const messageSchema = z
+  .object({
+    messageText: z.string().max(2000).optional(),
+    attachmentUrl: z.string().min(1).optional(),
+    attachmentType: z.enum(['image', 'video']).optional()
+  })
+  .refine((d) => Boolean(d.messageText?.trim()) || Boolean(d.attachmentUrl), {
+    message: 'Message text or an attachment is required.'
+  });
 
 chatRouter.post('/:orderId/messages', requireAuth, async (req: AuthedRequest, res) => {
   const order = await assertParticipant(req.params.orderId, req.userId!);
@@ -75,18 +83,30 @@ chatRouter.post('/:orderId/messages', requireAuth, async (req: AuthedRequest, re
   const parsed = messageSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
 
-  const flaggedKeyword = detectFlaggedKeyword(parsed.data.messageText);
+  const flaggedKeyword = parsed.data.messageText ? detectFlaggedKeyword(parsed.data.messageText) : null;
   const message = await prisma.chat.create({
     data: {
       orderId: order.id,
       senderId: req.userId!,
-      messageText: parsed.data.messageText,
+      messageText: parsed.data.messageText?.trim() ?? '',
+      attachmentUrl: parsed.data.attachmentUrl,
+      attachmentType: parsed.data.attachmentType,
       autoFlagged: Boolean(flaggedKeyword),
       flaggedKeyword
     }
   });
 
   return res.status(201).json({ message });
+});
+
+chatRouter.post('/:orderId/mark-read', requireAuth, async (req: AuthedRequest, res) => {
+  const order = await assertParticipant(req.params.orderId, req.userId!);
+  if (order === null) return res.status(404).json({ error: 'Order not found' });
+  if (order === undefined) return res.status(403).json({ error: 'Not a participant in this order' });
+
+  const field = order.buyerId === req.userId ? 'buyerLastReadAt' : 'sellerLastReadAt';
+  await prisma.order.update({ where: { id: order.id }, data: { [field]: new Date() } });
+  return res.json({ ok: true });
 });
 
 chatRouter.post('/messages/:id/report', requireAuth, async (req: AuthedRequest, res) => {

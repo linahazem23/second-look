@@ -3,7 +3,7 @@ import { api, friendlyError } from '../api.js';
 import { Icon, categoryIcon } from '../Icon.js';
 import { useAuth } from '../AuthContext.js';
 import { BuyPanel } from './BuyPanel.js';
-import { ImageUpload } from '../ImageUpload.js';
+import { MultiImageUpload } from '../ImageUpload.js';
 import { ReportListingModal } from './ReportListingModal.js';
 import { LocationAreaField } from '../LocationArea.js';
 import { Toggle } from '../Toggle.js';
@@ -15,7 +15,7 @@ const CONDITIONS = [
   { value: 'UsedAFewTimes', label: 'Used a few times' },
   { value: 'RegularlyUsed', label: 'Regularly used' }
 ];
-const CLOTHES_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+const CLOTHES_SIZES = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
 
 interface Listing {
   id: string;
@@ -34,10 +34,23 @@ interface Listing {
   seller: { id: string; fullName: string };
 }
 
-export function Home({ onOrderCreated, onViewProfile }: { onOrderCreated?: (orderId: string) => void; onViewProfile?: (userId: string) => void }) {
+export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrderCreated?: (orderId: string) => void; onMessageSeller?: (inquiryId: string) => void; onViewProfile?: (userId: string) => void }) {
   const { user } = useAuth();
   const [buyTarget, setBuyTarget] = useState<Listing | null>(null);
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
+  const [messagingId, setMessagingId] = useState<string | null>(null);
+
+  async function messageSeller(item: Listing) {
+    setMessagingId(item.id);
+    try {
+      const res = await api.post('/api/inquiries', { listingId: item.id });
+      onMessageSeller?.(res.inquiry.id);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setMessagingId(null);
+    }
+  }
   const [category, setCategory] = useState<string>('Skincare');
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -201,6 +214,8 @@ export function Home({ onOrderCreated, onViewProfile }: { onOrderCreated?: (orde
                     <span className="price">{item.price} EGP</span>
                     <span className="original-price">{item.originalPrice} EGP</span>
                   </div>
+                  <span className="discount-badge">{item.percentOff}% below original</span>
+                  {item.boosted && <span className="match-badge" style={{ marginLeft: 6 }}>Boosted</span>}
                   <div className="meta">
                     {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition} &middot; {item.area}
                   </div>
@@ -212,8 +227,6 @@ export function Home({ onOrderCreated, onViewProfile }: { onOrderCreated?: (orde
                       {item.seller.fullName}
                     </button>
                   )}
-                  <span className="discount-badge">{item.percentOff}% below original</span>
-                  {item.boosted && <span className="match-badge" style={{ marginLeft: 6 }}>Boosted</span>}
                   <div className="card-actions" style={{ marginTop: 8 }}>
                     {item.seller.id !== user?.id ? (
                       <button className="btn-outline" onClick={() => setBuyTarget(item)}>Buy</button>
@@ -221,6 +234,16 @@ export function Home({ onOrderCreated, onViewProfile }: { onOrderCreated?: (orde
                       !item.boosted && (
                         <button className="btn-outline" onClick={() => boostListing(item.id)}>Boost (25 EGP)</button>
                       )
+                    )}
+                    {item.seller.id !== user?.id && (
+                      <button
+                        className="card-icon-btn"
+                        aria-label="Message seller"
+                        disabled={messagingId === item.id}
+                        onClick={(e) => { e.stopPropagation(); messageSeller(item); }}
+                      >
+                        <Icon name="chat" size={13} />
+                      </button>
                     )}
                     <button
                       className="card-icon-btn"
@@ -329,7 +352,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
   const [allowOffers, setAllowOffers] = useState(false);
   const [size, setSize] = useState('');
   const [area, setArea] = useState('');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -342,7 +365,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
     e.preventDefault();
     setError(null);
 
-    if (!photoUrl) return setError('At least one photo is required.');
+    if (photoUrls.length === 0) return setError('At least one photo is required.');
     if (!validPrice) return setError('Your price must be strictly lower than the original price.');
     if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
     if (!area) return setError('We need your area to list this item — allow location access or pick one.');
@@ -358,7 +381,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
         condition,
         allowOffers,
         size: category === 'Clothes' ? size : undefined,
-        images: [photoUrl],
+        images: photoUrls,
         area
       });
       onPosted();
@@ -405,8 +428,8 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
       <label>Reason for selling</label>
       <textarea required rows={2} value={reasonForSelling} onChange={(e) => setReasonForSelling(e.target.value)} />
 
-      <label>Photo</label>
-      <ImageUpload value={photoUrl} onChange={setPhotoUrl} />
+      <label>Photos</label>
+      <MultiImageUpload value={photoUrls} onChange={setPhotoUrls} />
 
       <label>Area</label>
       <LocationAreaField value={area} onChange={setArea} />

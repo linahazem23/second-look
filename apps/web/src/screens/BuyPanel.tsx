@@ -37,12 +37,19 @@ export function BuyPanel({ listing, onClose, onBought }: { listing: BuyListing; 
       <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 14.5 }}>Buy "{listing.title}"</h3>
       <div className="sub">{listing.price} EGP &middot; from {listing.seller.fullName}</div>
       <label>Delivery method</label>
-      {DELIVERY_METHODS.map((m) => (
-        <label key={m.value} className="toggle-row" style={{ cursor: 'pointer' }}>
-          <span>{m.label} <span style={{ color: 'var(--ink-faint)', fontSize: 10.5 }}>— {m.note}</span></span>
-          <input type="radio" name="delivery" checked={deliveryMethod === m.value} onChange={() => setDeliveryMethod(m.value)} />
-        </label>
-      ))}
+      <div className="delivery-pills">
+        {DELIVERY_METHODS.map((m) => (
+          <button
+            key={m.value}
+            type="button"
+            className={`delivery-pill ${deliveryMethod === m.value ? 'active' : ''}`}
+            onClick={() => setDeliveryMethod(m.value)}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <p className="discount-hint">{DELIVERY_METHODS.find((m) => m.value === deliveryMethod)?.note}</p>
       {error && <p className="field-error">{error}</p>}
       <div className="form-row">
         <button type="button" className="btn-cancel" onClick={onClose}>Cancel</button>

@@ -93,6 +93,8 @@ model User {
   boostPayments       BoostPayment[]
   savedListings       SavedListing[]
   videoSubmissions    VideoSubmission[]
+  inquiriesAsBuyer    Inquiry[]     @relation("InquiriesAsBuyer")
+  inquiriesAsSeller   Inquiry[]     @relation("InquiriesAsSeller")
 }
 
 model VideoSubmission {
@@ -149,6 +151,7 @@ model Listing {
   orders          Order[]
   reports         ListingReport[]
   savedBy         SavedListing[]
+  inquiries       Inquiry[]
 }
 
 model DemandRequest {
@@ -200,6 +203,8 @@ model Order {
   deliveryConfirmedAt DateTime?
   paymentReleasedAt DateTime?
   reviewUnlockAt    DateTime?
+  buyerLastReadAt   DateTime?
+  sellerLastReadAt  DateTime?
   createdAt         DateTime            @default(now())
   reviews           Review[]
   chats             Chat[]
@@ -319,6 +324,40 @@ model Chat {
   orderId         String
   order           Order     @relation(fields: [orderId], references: [id])
   messageText     String
+  attachmentUrl   String?
+  attachmentType  String?
+  senderId        String
+  createdAt       DateTime  @default(now())
+  autoFlagged     Boolean   @default(false)
+  flaggedKeyword  String?
+  reported        Boolean   @default(false)
+}
+
+// Pre-purchase question thread between a buyer and a listing's seller — deliberately
+// separate from Order/Chat so asking a question never starts an escrow payment hold.
+model Inquiry {
+  id               String            @id @default(cuid())
+  listingId        String
+  listing          Listing           @relation(fields: [listingId], references: [id])
+  buyerId          String
+  buyer            User              @relation("InquiriesAsBuyer", fields: [buyerId], references: [id])
+  sellerId         String
+  seller           User              @relation("InquiriesAsSeller", fields: [sellerId], references: [id])
+  buyerLastReadAt  DateTime?
+  sellerLastReadAt DateTime?
+  createdAt        DateTime          @default(now())
+  messages         InquiryMessage[]
+
+  @@unique([listingId, buyerId])
+}
+
+model InquiryMessage {
+  id              String    @id @default(cuid())
+  inquiryId       String
+  inquiry         Inquiry   @relation(fields: [inquiryId], references: [id])
+  messageText     String
+  attachmentUrl   String?
+  attachmentType  String?
   senderId        String
   createdAt       DateTime  @default(now())
   autoFlagged     Boolean   @default(false)

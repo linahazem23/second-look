@@ -3,6 +3,13 @@ import { api, friendlyError } from '../api.js';
 import { useAuth } from '../AuthContext.js';
 import { Icon } from '../Icon.js';
 import { ProductReviewForm, PersonReviewForm } from './ReviewForms.js';
+import { uploadFile } from '../ImageUpload.js';
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  InEscrow: 'Payment held safely',
+  PaymentReleased: 'Payment released to seller',
+  Disputed: 'Under review'
+};
 
 const DELIVERY_LABELS: Record<string, string> = {
   Meetup: 'Meetup',
@@ -20,15 +27,40 @@ interface OrderSummary {
   buyer: { id: string; fullName: string };
   seller: { id: string; fullName: string };
   chats: { messageText: string }[];
+  unread: boolean;
 }
 
-export function Chat({ initialOrderId, onOpenOrder }: { initialOrderId?: string | null; onOpenOrder?: () => void }) {
+interface InquirySummary {
+  id: string;
+  listing: { title: string; images: string[] };
+  buyer: { id: string; fullName: string };
+  seller: { id: string; fullName: string };
+  messages: { messageText: string }[];
+  unread: boolean;
+}
+
+export function Chat({
+  initialOrderId,
+  initialInquiryId,
+  onOpenOrder,
+  onOpenInquiry
+}: {
+  initialOrderId?: string | null;
+  initialInquiryId?: string | null;
+  onOpenOrder?: () => void;
+  onOpenInquiry?: () => void;
+}) {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(initialOrderId ?? null);
+  const [activeInquiryId, setActiveInquiryId] = useState<string | null>(initialInquiryId ?? null);
   const [showSupport, setShowSupport] = useState(false);
 
   useEffect(() => {
     if (initialOrderId) setActiveOrderId(initialOrderId);
   }, [initialOrderId]);
+
+  useEffect(() => {
+    if (initialInquiryId) setActiveInquiryId(initialInquiryId);
+  }, [initialInquiryId]);
 
   if (showSupport) {
     return <SupportThread onBack={() => setShowSupport(false)} />;
@@ -36,18 +68,30 @@ export function Chat({ initialOrderId, onOpenOrder }: { initialOrderId?: string 
   if (activeOrderId) {
     return <ChatThread orderId={activeOrderId} onBack={() => { setActiveOrderId(null); onOpenOrder?.(); }} />;
   }
-  return <ChatList onOpen={setActiveOrderId} onOpenSupport={() => setShowSupport(true)} />;
+  if (activeInquiryId) {
+    return <InquiryThread inquiryId={activeInquiryId} onBack={() => { setActiveInquiryId(null); onOpenInquiry?.(); }} />;
+  }
+  return <ChatList onOpen={setActiveOrderId} onOpenInquiry={setActiveInquiryId} onOpenSupport={() => setShowSupport(true)} />;
 }
 
-function ChatList({ onOpen, onOpenSupport }: { onOpen: (id: string) => void; onOpenSupport: () => void }) {
+function ChatList({
+  onOpen,
+  onOpenInquiry,
+  onOpenSupport
+}: {
+  onOpen: (id: string) => void;
+  onOpenInquiry: (id: string) => void;
+  onOpenSupport: () => void;
+}) {
   const { user } = useAuth();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [inquiries, setInquiries] = useState<InquirySummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get('/api/orders/mine')
-      .then((res) => setOrders(res.orders))
+    Promise.all([api.get('/api/orders/mine'), api.get('/api/inquiries/mine')])
+      .then(([ordersRes, inquiriesRes]) => { setOrders(ordersRes.orders); setInquiries(inquiriesRes.inquiries); })
       .catch((err) => setError(friendlyError(err)))
       .finally(() => setLoading(false));
   }, []);
@@ -56,7 +100,7 @@ function ChatList({ onOpen, onOpenSupport }: { onOpen: (id: string) => void; onO
     <>
       <div className="section-head">
         <h1>Chat</h1>
-        <p>Order conversations</p>
+        <p>Questions and order conversations</p>
       </div>
       <button className="thread-row" onClick={onOpenSupport}>
         <div className="avatar" style={{ background: 'var(--rose)', color: 'var(--white)' }}>SL</div>
@@ -67,22 +111,167 @@ function ChatList({ onOpen, onOpenSupport }: { onOpen: (id: string) => void; onO
       </button>
       {loading && <div className="empty-state">Loading…</div>}
       {error && <div className="empty-state">{error}</div>}
-      {!loading && !error && orders.length === 0 && (
-        <div className="empty-state">No conversations yet — buy or sell something to start one.</div>
+      {!loading && !error && orders.length === 0 && inquiries.length === 0 && (
+        <div className="empty-state">No conversations yet — message a seller or buy something to start one.</div>
       )}
+      {inquiries.map((i) => {
+        const other = user?.id === i.buyer.id ? i.seller : i.buyer;
+        return (
+          <button key={i.id} className="thread-row" onClick={() => onOpenInquiry(i.id)}>
+            <div className="avatar">{other.fullName.slice(0, 1)}</div>
+            <div>
+              <div className="t-name">{other.fullName} &middot; {i.listing.title} {i.unread && <span className="unread-dot" />}</div>
+              <div className="t-sub">{i.messages[0]?.messageText ?? 'Question about this listing'}</div>
+            </div>
+          </button>
+        );
+      })}
       {orders.map((o) => {
         const other = user?.id === o.buyer.id ? o.seller : o.buyer;
         return (
           <button key={o.id} className="thread-row" onClick={() => onOpen(o.id)}>
             <div className="avatar">{other.fullName.slice(0, 1)}</div>
             <div>
-              <div className="t-name">{other.fullName} &middot; {o.listing.title}</div>
+              <div className="t-name">{other.fullName} &middot; {o.listing.title} {o.unread && <span className="unread-dot" />}</div>
               <div className="t-sub">{o.chats[0]?.messageText ?? `Order started · ${o.amount} EGP`}</div>
             </div>
           </button>
         );
       })}
     </>
+  );
+}
+
+interface InquiryFull {
+  id: string;
+  listing: { title: string; price: number };
+  buyer: { id: string; fullName: string };
+  seller: { id: string; fullName: string };
+}
+
+function InquiryThread({ inquiryId, onBack }: { inquiryId: string; onBack: () => void }) {
+  const { user } = useAuth();
+  const [inquiry, setInquiry] = useState<InquiryFull | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+
+  async function loadAll() {
+    try {
+      const [inquiryRes, msgRes] = await Promise.all([
+        api.get(`/api/inquiries/${inquiryId}`),
+        api.get(`/api/inquiries/${inquiryId}/messages`)
+      ]);
+      setInquiry(inquiryRes.inquiry);
+      setMessages(msgRes.messages);
+    } catch (err) {
+      setError(friendlyError(err));
+    }
+  }
+
+  useEffect(() => {
+    loadAll();
+    api.post(`/api/inquiries/${inquiryId}/mark-read`).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inquiryId]);
+
+  async function sendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/inquiries/${inquiryId}/messages`, { messageText: draft.trim() });
+      setDraft('');
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendAttachment(file: File) {
+    setAttaching(true);
+    setError(null);
+    try {
+      const url = await uploadFile(file);
+      const attachmentType = file.type.startsWith('video/') ? 'video' : 'image';
+      await api.post(`/api/inquiries/${inquiryId}/messages`, { attachmentUrl: url, attachmentType });
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setAttaching(false);
+    }
+  }
+
+  async function reportMessage(id: string) {
+    try {
+      await api.post(`/api/inquiries/messages/${id}/report`);
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    }
+  }
+
+  if (!inquiry) return <div className="empty-state">{error || 'Loading…'}</div>;
+
+  const other = user?.id === inquiry.buyer.id ? inquiry.seller : inquiry.buyer;
+
+  return (
+    <div id="chat-thread">
+      <div className="thread-header">
+        <button onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
+        <div>
+          <div className="t-name">{other.fullName}</div>
+          <div className="t-sub">{inquiry.listing.title} &middot; {inquiry.listing.price} EGP &middot; Question</div>
+        </div>
+      </div>
+      <div className="mod-banner"><Icon name="flag" size={12} /> Conversations on Second Look may be reviewed for safety.</div>
+
+      <div className="messages">
+        {messages.map((m) => (
+          <div key={m.id} style={{ alignSelf: m.senderId === user?.id ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+            {m.attachmentUrl && (
+              <div className={`bubble attachment ${m.senderId === user?.id ? 'me' : 'them'}`}>
+                {m.attachmentType === 'video' ? <video src={m.attachmentUrl} controls /> : <img src={m.attachmentUrl} alt="Attachment" />}
+              </div>
+            )}
+            {m.messageText && (
+              <div className={`bubble ${m.senderId === user?.id ? 'me' : 'them'}`}>{m.messageText}</div>
+            )}
+            {m.senderId !== user?.id && (
+              <button style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--ink-faint)', padding: 0 }} onClick={() => reportMessage(m.id)}>
+                Report
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {error && <p className="field-error" style={{ margin: '0 16px' }}>{error}</p>}
+
+      <form className="composer" onSubmit={sendMessage}>
+        <label className="attach-btn">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+            style={{ display: 'none' }}
+            disabled={attaching}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) sendAttachment(file);
+              e.target.value = '';
+            }}
+          />
+          <Icon name="attach" size={16} />
+        </label>
+        <input placeholder={attaching ? 'Sending attachment…' : 'Ask a question…'} value={draft} onChange={(e) => setDraft(e.target.value)} disabled={attaching} />
+        <button type="submit" className="send-btn" disabled={busy || attaching}><Icon name="send" size={14} /></button>
+      </form>
+    </div>
   );
 }
 
@@ -95,6 +284,8 @@ interface FullOrder extends OrderSummary {
 interface Message {
   id: string;
   messageText: string;
+  attachmentUrl?: string | null;
+  attachmentType?: string | null;
   senderId: string;
   autoFlagged: boolean;
   createdAt: string;
@@ -107,6 +298,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [attaching, setAttaching] = useState(false);
   const [showTrackingInput, setShowTrackingInput] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState('');
   const [showMonetizationPrompt, setShowMonetizationPrompt] = useState(false);
@@ -126,6 +318,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
 
   useEffect(() => {
     loadAll();
+    api.post(`/api/chats/${orderId}/mark-read`).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
@@ -141,6 +334,21 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       setError(friendlyError(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendAttachment(file: File) {
+    setAttaching(true);
+    setError(null);
+    try {
+      const url = await uploadFile(file);
+      const attachmentType = file.type.startsWith('video/') ? 'video' : 'image';
+      await api.post(`/api/chats/${orderId}/messages`, { attachmentUrl: url, attachmentType });
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setAttaching(false);
     }
   }
 
@@ -220,7 +428,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       <div className="mod-banner"><Icon name="flag" size={12} /> Conversations on Second Look may be reviewed for safety.</div>
 
       <div className="plain-card" style={{ margin: '10px 18px 0' }}>
-        <div className="sub">Escrow status: <strong>{order.escrowStatus}</strong></div>
+        <div className="sub">Order status: <strong>{ORDER_STATUS_LABELS[order.escrowStatus] ?? order.escrowStatus}</strong></div>
         {order.trackingLinks.length > 0 && (
           <div className="sub">Tracking: <a href={order.trackingLinks[0].url} target="_blank" rel="noreferrer">{order.trackingLinks[0].url}</a></div>
         )}
@@ -271,7 +479,18 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       <div className="messages">
         {messages.map((m) => (
           <div key={m.id} style={{ alignSelf: m.senderId === user?.id ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-            <div className={`bubble ${m.senderId === user?.id ? 'me' : 'them'}`}>{m.messageText}</div>
+            {m.attachmentUrl && (
+              <div className={`bubble attachment ${m.senderId === user?.id ? 'me' : 'them'}`}>
+                {m.attachmentType === 'video' ? (
+                  <video src={m.attachmentUrl} controls />
+                ) : (
+                  <img src={m.attachmentUrl} alt="Attachment" />
+                )}
+              </div>
+            )}
+            {m.messageText && (
+              <div className={`bubble ${m.senderId === user?.id ? 'me' : 'them'}`}>{m.messageText}</div>
+            )}
             {m.senderId !== user?.id && (
               <button style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--ink-faint)', padding: 0 }} onClick={() => reportMessage(m.id)}>
                 Report
@@ -284,8 +503,22 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       {error && <p className="field-error" style={{ margin: '0 16px' }}>{error}</p>}
 
       <form className="composer" onSubmit={sendMessage}>
-        <input placeholder="Message…" value={draft} onChange={(e) => setDraft(e.target.value)} />
-        <button type="submit" className="send-btn" disabled={busy}><Icon name="send" size={14} /></button>
+        <label className="attach-btn">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+            style={{ display: 'none' }}
+            disabled={attaching}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) sendAttachment(file);
+              e.target.value = '';
+            }}
+          />
+          <Icon name="attach" size={16} />
+        </label>
+        <input placeholder={attaching ? 'Sending attachment…' : 'Message…'} value={draft} onChange={(e) => setDraft(e.target.value)} disabled={attaching} />
+        <button type="submit" className="send-btn" disabled={busy || attaching}><Icon name="send" size={14} /></button>
       </form>
     </div>
   );

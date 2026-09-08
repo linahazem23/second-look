@@ -56,7 +56,16 @@ ordersRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
       chats: { orderBy: { createdAt: 'desc' }, take: 1 }
     }
   });
-  return res.json({ orders });
+
+  const withUnread = orders.map((o) => {
+    const isBuyer = o.buyerId === req.userId;
+    const lastRead = isBuyer ? o.buyerLastReadAt : o.sellerLastReadAt;
+    const latest = o.chats[0];
+    const unread = Boolean(latest && latest.senderId !== req.userId && (!lastRead || latest.createdAt > lastRead));
+    return { ...o, unread };
+  });
+
+  return res.json({ orders: withUnread });
 });
 
 ordersRouter.get('/:id', requireAuth, async (req: AuthedRequest, res) => {

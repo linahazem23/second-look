@@ -15,6 +15,7 @@ import { appealsRouter } from './routes/appeals.routes.js';
 import { adminRouter } from './routes/admin.routes.js';
 import { profilesRouter } from './routes/profiles.routes.js';
 import { growthRouter } from './routes/growth.routes.js';
+import { inquiriesRouter } from './routes/inquiries.routes.js';
 
 dotenv.config();
 
@@ -43,6 +44,7 @@ app.use('/api/appeals', appealsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/profiles', profilesRouter);
 app.use('/api/growth', growthRouter);
+app.use('/api/inquiries', inquiriesRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
