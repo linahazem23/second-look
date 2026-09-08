@@ -126,16 +126,18 @@ export function Profile({ onBack }: { onBack: () => void }) {
       {saved.length === 0 && <div className="empty-state">Nothing saved yet — tap the heart on a listing to save it.</div>}
       <div className="grid">
         {saved.map((item) => (
-          <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`} style={{ position: 'relative' }}>
-            <button className="card-flag-btn" aria-label="Unsave" style={{ left: 6, right: 'auto', color: 'var(--rose)' }} onClick={() => unsave(item.id)}>
-              <Icon name="want" size={12} />
-            </button>
+          <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`}>
             <div className="thumb">
               {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={20} />}
             </div>
             <div className="info">
               <div className="name">{item.title}</div>
               <div className="price-row"><span className="price">{item.price} EGP</span><span className="original-price">{item.originalPrice} EGP</span></div>
+              <div className="card-actions" style={{ marginTop: 8 }}>
+                <button className="card-icon-btn" aria-label="Unsave" style={{ color: 'var(--rose)' }} onClick={() => unsave(item.id)}>
+                  <Icon name="want" size={13} />
+                </button>
+              </div>
             </div>
           </div>
         ))}

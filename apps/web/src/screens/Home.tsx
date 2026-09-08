@@ -191,24 +191,7 @@ export function Home({ onOrderCreated, onViewProfile }: { onOrderCreated?: (orde
           <div className="result-count">{listings.length} result{listings.length === 1 ? '' : 's'}</div>
           <div className="grid">
             {listings.map((item) => (
-              <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`} style={{ position: 'relative' }}>
-                <button
-                  className="card-flag-btn"
-                  aria-label={item.savedByMe ? 'Unsave' : 'Save'}
-                  style={{ left: 6, right: 'auto', color: item.savedByMe ? 'var(--rose)' : 'var(--ink-light)' }}
-                  onClick={(e) => { e.stopPropagation(); toggleSave(item); }}
-                >
-                  <Icon name="want" size={12} />
-                </button>
-                {item.seller.id !== user?.id && (
-                  <button
-                    className="card-flag-btn"
-                    aria-label="Report this listing"
-                    onClick={(e) => { e.stopPropagation(); setReportTarget(item); }}
-                  >
-                    <Icon name="flag" size={12} />
-                  </button>
-                )}
+              <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`}>
                 <div className="thumb">
                   {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={24} />}
                 </div>
@@ -231,17 +214,32 @@ export function Home({ onOrderCreated, onViewProfile }: { onOrderCreated?: (orde
                   )}
                   <span className="discount-badge">{item.percentOff}% below original</span>
                   {item.boosted && <span className="match-badge" style={{ marginLeft: 6 }}>Boosted</span>}
-                  {item.seller.id !== user?.id ? (
-                    <div style={{ marginTop: 8 }}>
+                  <div className="card-actions" style={{ marginTop: 8 }}>
+                    {item.seller.id !== user?.id ? (
                       <button className="btn-outline" onClick={() => setBuyTarget(item)}>Buy</button>
-                    </div>
-                  ) : (
-                    !item.boosted && (
-                      <div style={{ marginTop: 8 }}>
+                    ) : (
+                      !item.boosted && (
                         <button className="btn-outline" onClick={() => boostListing(item.id)}>Boost (25 EGP)</button>
-                      </div>
-                    )
-                  )}
+                      )
+                    )}
+                    <button
+                      className="card-icon-btn"
+                      aria-label={item.savedByMe ? 'Unsave' : 'Save'}
+                      style={{ color: item.savedByMe ? 'var(--rose)' : 'var(--ink-light)' }}
+                      onClick={(e) => { e.stopPropagation(); toggleSave(item); }}
+                    >
+                      <Icon name="want" size={13} />
+                    </button>
+                    {item.seller.id !== user?.id && (
+                      <button
+                        className="card-icon-btn"
+                        aria-label="Report this listing"
+                        onClick={(e) => { e.stopPropagation(); setReportTarget(item); }}
+                      >
+                        <Icon name="flag" size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
