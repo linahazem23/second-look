@@ -105,10 +105,9 @@ authRouter.post('/profile-quiz', requireAuth, async (req: AuthedRequest, res) =>
 });
 
 /**
- * KYC is modeled as a call out to an external ID+selfie verification provider
- * (Sumsub/iDenfy/Onfido-shaped). No real vendor is wired up here — this simulates
- * the ~90% auto-pass rate and routes the rest to manual admin review, which is the
- * actual integration boundary a real provider webhook would replace.
+ * No automated ID+selfie verification vendor is wired up yet (Sumsub/iDenfy/Onfido
+ * are the shape a future one would take). Until then, every submission is a real
+ * document upload routed to a human in the admin KYC queue — no auto-pass.
  */
 authRouter.post('/kyc/submit', requireAuth, async (req: AuthedRequest, res) => {
   const parsed = z
@@ -116,12 +115,13 @@ authRouter.post('/kyc/submit', requireAuth, async (req: AuthedRequest, res) => {
     .safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const autoPass = Math.random() < 0.9;
   const user = await prisma.user.update({
     where: { id: req.userId },
     data: {
-      kycStatus: autoPass ? 'approved' : 'manual_review',
-      verifiedFemale: autoPass
+      idDocumentUrl: parsed.data.idDocumentUrl,
+      selfieUrl: parsed.data.selfieUrl,
+      kycStatus: 'manual_review',
+      kycRejectionReason: null
     }
   });
 

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { api, friendlyError } from '../api.js';
+import { uploadFile } from '../ImageUpload.js';
 
 const GUIDELINE_SLIDES = [
   {
@@ -20,21 +21,63 @@ const GUIDELINE_SLIDES = [
   }
 ];
 
+function DocUploadButton({ label, url, busy, onSelect }: { label: string; url: string | null; busy: boolean; onSelect: (file: File) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        type="button"
+        className="btn-outline"
+        style={{ width: '100%' }}
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+      >
+        {url ? `✓ ${label} added — tap to replace` : `Upload ${label}`}
+      </button>
+      {url && <img src={url} alt={label} style={{ marginTop: 8, width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onSelect(file);
+          e.target.value = '';
+        }}
+      />
+    </div>
+  );
+}
+
 export function KycGate({ onDone }: { onDone: () => void }) {
+  const [idDocumentUrl, setIdDocumentUrl] = useState<string | null>(null);
+  const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
+  const [uploadingDoc, setUploadingDoc] = useState<'id' | 'selfie' | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ kycStatus: string; verifiedFemale: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function handleUpload(kind: 'id' | 'selfie', file: File) {
+    setUploadingDoc(kind);
+    setError(null);
+    try {
+      const url = await uploadFile(file);
+      if (kind === 'id') setIdDocumentUrl(url);
+      else setSelfieUrl(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingDoc(null);
+    }
+  }
+
   async function handleVerify() {
+    if (!idDocumentUrl || !selfieUrl) return;
     setBusy(true);
     setError(null);
     try {
-      // Real build sends the ID photo + live selfie to the KYC vendor (Sumsub/iDenfy/Onfido-shaped);
-      // this stub simulates that call so the flow is testable without real vendor credentials.
-      const res = await api.post('/api/auth/kyc/submit', {
-        idDocumentUrl: 'stub://id-document',
-        selfieUrl: 'stub://selfie'
-      });
+      const res = await api.post('/api/auth/kyc/submit', { idDocumentUrl, selfieUrl });
       setResult(res);
     } catch (err) {
       setError(friendlyError(err));
@@ -56,23 +99,23 @@ export function KycGate({ onDone }: { onDone: () => void }) {
         </p>
         {!result && (
           <>
+            <DocUploadButton label="a photo of your ID" url={idDocumentUrl} busy={uploadingDoc === 'id'} onSelect={(f) => handleUpload('id', f)} />
+            <DocUploadButton label="a selfie" url={selfieUrl} busy={uploadingDoc === 'selfie'} onSelect={(f) => handleUpload('selfie', f)} />
             <p className="lead" style={{ marginTop: 18, fontSize: 12.5 }}>
-              (Demo mode: no real document upload is wired up yet — this simulates the verification call.)
+              A real person on our team reviews every submission — this usually takes a short while.
             </p>
             {error && <p className="ob-err">{error}</p>}
           </>
         )}
         {result && (
           <p className="lead" style={{ marginTop: 18 }}>
-            {result.verifiedFemale
-              ? 'You’re verified! You now have full access to buy, sell, and post.'
-              : 'Your documents were sent for manual review. This usually takes a short while — you can browse in the meantime.'}
+            Your documents were sent for manual review. This usually takes a short while — you can browse in the meantime.
           </p>
         )}
       </div>
       <div className="ob-footer">
         {!result ? (
-          <button disabled={busy} onClick={handleVerify}>{busy ? 'Verifying…' : 'Upload ID & selfie'}</button>
+          <button disabled={busy || !idDocumentUrl || !selfieUrl} onClick={handleVerify}>{busy ? 'Submitting…' : 'Submit for review'}</button>
         ) : (
           <button onClick={onDone}>Continue</button>
         )}

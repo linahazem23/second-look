@@ -102,7 +102,7 @@ adminRouter.get('/kyc-pending', async (_req, res) => {
   const users = await prisma.user.findMany({
     where: { kycStatus: 'manual_review' },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, fullName: true, email: true, area: true, age: true, createdAt: true }
+    select: { id: true, fullName: true, email: true, area: true, age: true, createdAt: true, idDocumentUrl: true, selfieUrl: true }
   });
   return res.json({ users });
 });
@@ -110,7 +110,7 @@ adminRouter.get('/kyc-pending', async (_req, res) => {
 adminRouter.post('/kyc-pending/:id/approve', async (req, res) => {
   const user = await prisma.user.update({
     where: { id: req.params.id },
-    data: { kycStatus: 'approved', verifiedFemale: true }
+    data: { kycStatus: 'approved', verifiedFemale: true, kycRejectionReason: null }
   });
   return res.json({ user: { id: user.id, kycStatus: user.kycStatus, verifiedFemale: user.verifiedFemale } });
 });
@@ -121,7 +121,7 @@ adminRouter.post('/kyc-pending/:id/reject', async (req, res) => {
 
   const user = await prisma.user.update({
     where: { id: req.params.id },
-    data: { kycStatus: 'rejected', verifiedFemale: false }
+    data: { kycStatus: 'rejected', verifiedFemale: false, kycRejectionReason: parsed.data.reason }
   });
   return res.json({ user: { id: user.id, kycStatus: user.kycStatus }, reason: parsed.data.reason });
 });
