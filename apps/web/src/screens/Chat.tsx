@@ -481,7 +481,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
                 <span>{order.listing.title}</span><span>{order.listing.price} EGP</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, marginTop: 4 }}>
-                <span>Buyer protection fee (5%)</span><span>{order.buyerProtectionFee} EGP</span>
+                <span>Buyer protection fee ({Math.round((order.buyerProtectionFee / order.listing.price) * 100)}%)</span><span>{order.buyerProtectionFee} EGP</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
                 <span>Total due</span><span>{order.amount} EGP</span>
