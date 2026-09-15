@@ -23,6 +23,12 @@ dotenv.config();
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
+// Render terminates TLS and proxies to us over plain HTTP, setting
+// X-Forwarded-Proto: https — without this, req.protocol always reads "http"
+// even on the live HTTPS domain, so generated URLs (uploads, etc.) come back
+// as http:// and trip mixed-content warnings.
+app.set('trust proxy', 1);
+
 app.use(cors());
 app.use(express.json());
 
