@@ -27,12 +27,15 @@ paymentsRouter.post('/paymob/webhook', async (req, res) => {
     if (boostPayment.paid) return res.json({ ok: true });
 
     if (obj.success === true) {
+      const boostedTargetUpdate = boostPayment.targetType === 'demand'
+        ? prisma.demandRequest.update({ where: { id: boostPayment.targetId }, data: { boosted: true } })
+        : prisma.listing.update({ where: { id: boostPayment.targetId }, data: { boosted: true } });
       await prisma.$transaction([
         prisma.boostPayment.update({ where: { id: boostPayment.id }, data: { paid: true } }),
-        prisma.listing.update({ where: { id: boostPayment.targetId }, data: { boosted: true } })
+        boostedTargetUpdate
       ]);
     }
-    // On failure there's nothing to revert — the listing was never marked boosted.
+    // On failure there's nothing to revert — the target was never marked boosted.
 
     return res.json({ ok: true });
   }

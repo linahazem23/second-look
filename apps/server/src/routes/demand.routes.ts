@@ -5,6 +5,7 @@ import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
 import { isPlusActive } from '../lib/membership.js';
+import { createPaymobCheckout } from '../lib/paymob.js';
 
 export const demandRouter = Router();
 
@@ -92,6 +93,8 @@ demandRouter.post('/:id/comments', requireAuth, requireVerified, async (req: Aut
   return res.status(201).json({ comment });
 });
 
+// Mirrors listings.routes.ts's boost flow — a real Paymob charge, only
+// flipping `boosted: true` once the shared webhook confirms payment.
 demandRouter.post('/:id/boost', requireAuth, async (req: AuthedRequest, res) => {
   const request = await prisma.demandRequest.findUnique({ where: { id: req.params.id } });
   if (!request) return res.status(404).json({ error: 'Request not found' });
@@ -99,7 +102,32 @@ demandRouter.post('/:id/boost', requireAuth, async (req: AuthedRequest, res) => 
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
   const amount = isPlusActive(user) ? 0 : 25;
-  await prisma.boostPayment.create({ data: { userId: req.userId!, targetType: 'demand', targetId: request.id, amount } });
-  const updated = await prisma.demandRequest.update({ where: { id: request.id }, data: { boosted: true } });
-  return res.json({ request: updated, wasFree: amount === 0 });
+
+  if (amount === 0) {
+    await prisma.boostPayment.create({ data: { userId: req.userId!, targetType: 'demand', targetId: request.id, amount, paid: true } });
+    const updated = await prisma.demandRequest.update({ where: { id: request.id }, data: { boosted: true } });
+    return res.json({ request: updated, wasFree: true });
+  }
+
+  const boostPayment = await prisma.boostPayment.create({ data: { userId: req.userId!, targetType: 'demand', targetId: request.id, amount, paid: false } });
+
+  try {
+    const [firstName, ...rest] = user.fullName.split(' ');
+    const { paymobOrderId, iframeUrl } = await createPaymobCheckout({
+      amountEgp: amount,
+      merchantOrderId: `boost_${boostPayment.id}`,
+      billing: { firstName, lastName: rest.join(' '), email: user.email, phone: '' }
+    });
+    await prisma.boostPayment.update({ where: { id: boostPayment.id }, data: { paymobOrderId } });
+    return res.json({ wasFree: false, boostPaymentId: boostPayment.id, iframeUrl });
+  } catch (err) {
+    return res.status(502).json({ error: err instanceof Error ? err.message : 'Payment provider error' });
+  }
+});
+
+// Polled by the client after opening the Paymob checkout tab.
+demandRouter.get('/boost-payments/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const boostPayment = await prisma.boostPayment.findUnique({ where: { id: req.params.id } });
+  if (!boostPayment || boostPayment.userId !== req.userId) return res.status(404).json({ error: 'Not found' });
+  return res.json({ paid: boostPayment.paid });
 });

@@ -29,6 +29,8 @@ export function Want() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [boostingId, setBoostingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -48,12 +50,51 @@ export function Want() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Mirrors Home.tsx's listing boost flow — a real 25 EGP Paymob charge, with
+  // the badge only appearing once the webhook confirms payment went through.
+  function pollBoostPayment(wantId: string, boostPaymentId: string, attempt = 0) {
+    if (attempt > 40) {
+      setBoostingId((current) => (current === wantId ? null : current));
+      setActionError('Still waiting on that payment — if you completed it, the badge will appear on refresh.');
+      return;
+    }
+    setTimeout(async () => {
+      try {
+        const res = await api.get(`/api/demand/boost-payments/${boostPaymentId}`);
+        if (res.paid) {
+          setRequests((prev) => prev.map((r) => (r.id === wantId ? { ...r, boosted: true } : r)));
+          setActionError(null);
+          setBoostingId((current) => (current === wantId ? null : current));
+          return;
+        }
+      } catch {
+        // transient poll error — keep trying
+      }
+      pollBoostPayment(wantId, boostPaymentId, attempt + 1);
+    }, 3000);
+  }
+
   async function boostWant(id: string) {
+    setActionError(null);
+    setBoostingId(id);
     try {
-      await api.post(`/api/demand/${id}/boost`);
-      load();
+      const res = await api.post(`/api/demand/${id}/boost`);
+      if (res.wasFree) {
+        setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, boosted: true } : r)));
+        setBoostingId(null);
+        return;
+      }
+      const checkoutTab = window.open(res.iframeUrl, '_blank');
+      if (!checkoutTab) {
+        setActionError('Your browser blocked the payment tab. Please allow popups for this site and try boosting again.');
+        setBoostingId(null);
+        return;
+      }
+      setActionError('Complete the 25 EGP payment in the new tab — the Boosted badge appears here automatically once it goes through.');
+      pollBoostPayment(id, res.boostPaymentId);
     } catch (err) {
-      setError(friendlyError(err));
+      setActionError(friendlyError(err));
+      setBoostingId(null);
     }
   }
 
@@ -110,6 +151,11 @@ export function Want() {
         </form>
       )}
 
+      {actionError && (
+        <p className="field-error" style={{ margin: '0 18px 10px' }}>
+          {actionError} <button type="button" onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', padding: 0 }}>Dismiss</button>
+        </p>
+      )}
       {loading && <div className="empty-state">Loading…</div>}
       {error && <div className="empty-state">{error}</div>}
       {!loading && !error && requests.length === 0 && <div className="empty-state">You haven't posted any wants yet.</div>}
@@ -120,7 +166,9 @@ export function Want() {
           <div className="sub">{w.note || 'No extra notes'} &middot; {w.area}</div>
           {!w.boosted && (
             <div className="row">
-              <button className="btn-outline" onClick={() => boostWant(w.id)}>Boost (25 EGP)</button>
+              <button className="btn-outline" disabled={boostingId === w.id} onClick={() => boostWant(w.id)}>
+                {boostingId === w.id ? 'Waiting for payment…' : 'Boost (25 EGP)'}
+              </button>
             </div>
           )}
         </div>
