@@ -19,6 +19,10 @@ services:
         sync: false
       - key: PAYMOB_MERCHANT_ID
         sync: false
+      - key: PAYMOB_HMAC_SECRET
+        sync: false
+      - key: PAYMOB_IFRAME_ID
+        sync: false
       - key: APP_URL
         sync: false
       - key: PORT
