@@ -29,9 +29,10 @@ const DELIVERY_METHODS = [
 interface OrderSummary {
   id: string;
   amount: number;
+  buyerProtectionFee: number;
   deliveryMethod: string | null;
   escrowStatus: string;
-  listing: { title: string; images: string[] };
+  listing: { title: string; price: number; images: string[] };
   buyer: { id: string; fullName: string };
   seller: { id: string; fullName: string };
   chats: { messageText: string }[];
@@ -473,7 +474,25 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
 
       {order.escrowStatus === 'AwaitingPayment' ? (
         <div className="plain-card" style={{ margin: '10px 18px 0' }}>
-          <div className="sub">Complete payment to start this order — {order.amount} EGP</div>
+          {isBuyer ? (
+            <>
+              <div className="sub">Item price</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5 }}>
+                <span>{order.listing.title}</span><span>{order.listing.price} EGP</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, marginTop: 4 }}>
+                <span>Buyer protection fee (5%)</span><span>{order.buyerProtectionFee} EGP</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
+                <span>Total due</span><span>{order.amount} EGP</span>
+              </div>
+              <div className="sub" style={{ marginTop: 6, fontSize: 11.5 }}>
+                The protection fee funds identity verification, held payment, and moderation — the seller receives the full {order.listing.price} EGP item price.
+              </div>
+            </>
+          ) : (
+            <div className="sub">Waiting on the buyer's payment — you'll receive {order.listing.price} EGP for this item once it's confirmed delivered.</div>
+          )}
           <div className="row" style={{ marginTop: 8 }}>
             {isBuyer ? (
               <button className="btn-solid" disabled={busy} onClick={payNow}>

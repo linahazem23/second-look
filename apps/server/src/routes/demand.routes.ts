@@ -93,12 +93,21 @@ demandRouter.post('/:id/comments', requireAuth, requireVerified, async (req: Aut
   return res.status(201).json({ comment });
 });
 
+// Same hard per-category scarcity cap as listings.routes.ts.
+const MAX_BOOSTED_PER_CATEGORY = 3;
+
 // Mirrors listings.routes.ts's boost flow — a real Paymob charge, only
 // flipping `boosted: true` once the shared webhook confirms payment.
 demandRouter.post('/:id/boost', requireAuth, async (req: AuthedRequest, res) => {
   const request = await prisma.demandRequest.findUnique({ where: { id: req.params.id } });
   if (!request) return res.status(404).json({ error: 'Request not found' });
   if (request.requesterId !== req.userId) return res.status(403).json({ error: 'Not your request' });
+  if (request.boosted) return res.status(409).json({ error: 'This want post is already boosted.' });
+
+  const activeBoostedCount = await prisma.demandRequest.count({ where: { category: request.category, boosted: true, status: 'open' } });
+  if (activeBoostedCount >= MAX_BOOSTED_PER_CATEGORY) {
+    return res.status(409).json({ error: `Boost slots for ${request.category} are full right now (${MAX_BOOSTED_PER_CATEGORY}/${MAX_BOOSTED_PER_CATEGORY}). Try again once one clears.` });
+  }
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
   const amount = isPlusActive(user) ? 0 : 25;

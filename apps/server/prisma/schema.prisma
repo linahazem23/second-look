@@ -203,6 +203,7 @@ model Order {
   listingId         String
   listing           Listing             @relation(fields: [listingId], references: [id])
   amount            Float
+  buyerProtectionFee Float              @default(0)
   deliveryMethod    DeliveryMethod?
   escrowStatus      OrderEscrowStatus   @default(AwaitingPayment)
   paymobOrderId     String?

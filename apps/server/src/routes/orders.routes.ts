@@ -10,6 +10,9 @@ export const ordersRouter = Router();
 const DELIVERY_METHODS = ['Meetup', 'UberCourier', 'InDrive', 'BostaMylerz'] as const;
 const REVIEW_UNLOCK_WAIT_DAYS = 6;
 const SELLER_PLUS_OFFER_THRESHOLD = 5;
+// Funds the escrow/dispute/KYC machinery — charged to the buyer only, never
+// deducted from what the seller receives, so listing this item costs a seller nothing.
+const BUYER_PROTECTION_FEE_RATE = 0.05;
 
 const createOrderSchema = z.object({
   listingId: z.string().min(1)
@@ -25,13 +28,16 @@ ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, 
   if (!listing || listing.status !== 'Active') return res.status(409).json({ error: 'Listing is not available' });
   if (listing.sellerId === req.userId) return res.status(422).json({ error: 'You cannot buy your own listing' });
 
+  const buyerProtectionFee = Math.round(listing.price * BUYER_PROTECTION_FEE_RATE * 100) / 100;
+
   const [order] = await prisma.$transaction([
     prisma.order.create({
       data: {
         buyerId: req.userId!,
         sellerId: listing.sellerId,
         listingId: listing.id,
-        amount: listing.price
+        amount: listing.price + buyerProtectionFee,
+        buyerProtectionFee
       }
     }),
     // Deal is finalized at payment/escrow, so the listing comes off the active feed immediately.

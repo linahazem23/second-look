@@ -38,7 +38,7 @@ adminRouter.post('/me/change-password', async (req: AuthedRequest, res) => {
 
 // ---- Overview ----
 adminRouter.get('/overview', async (_req, res) => {
-  const [activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingVideoSubmissions, recentOrders, ageBuckets] =
+  const [activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingVideoSubmissions, recentOrders, ageBuckets, feeRevenue, boostRevenue] =
     await Promise.all([
       prisma.user.count({ where: { status: { not: 'Blocked' } } }),
       prisma.listing.count({ where: { status: 'Active' } }),
@@ -49,7 +49,11 @@ adminRouter.get('/overview', async (_req, res) => {
       prisma.user.count({ where: { kycStatus: 'manual_review' } }),
       prisma.videoSubmission.count({ where: { status: 'pending' } }),
       prisma.order.findMany({ take: 10, orderBy: { createdAt: 'desc' }, include: { buyer: true, seller: true, listing: true } }),
-      prisma.user.findMany({ select: { age: true } })
+      prisma.user.findMany({ select: { age: true } }),
+      // Fee is collected the moment a charge clears — counted for every order that
+      // actually paid, regardless of what happens to the item afterward.
+      prisma.order.aggregate({ where: { escrowStatus: { in: ['InEscrow', 'PaymentReleased', 'Disputed'] } }, _sum: { buyerProtectionFee: true } }),
+      prisma.boostPayment.aggregate({ where: { paid: true }, _sum: { amount: true } })
     ]);
 
   const ageDistribution: Record<string, number> = {};
@@ -61,6 +65,10 @@ adminRouter.get('/overview', async (_req, res) => {
 
   return res.json({
     stats: { activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingVideoSubmissions },
+    revenue: {
+      buyerProtectionFees: feeRevenue._sum.buyerProtectionFee ?? 0,
+      boosts: boostRevenue._sum.amount ?? 0
+    },
     ageDistribution,
     recentOrders: recentOrders.map((o) => ({
       id: o.id,

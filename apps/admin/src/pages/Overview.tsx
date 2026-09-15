@@ -4,6 +4,7 @@ import { Pill } from '../Pill.js';
 
 interface OverviewData {
   stats: Record<string, number>;
+  revenue: { buyerProtectionFees: number; boosts: number };
   ageDistribution: Record<string, number>;
   recentOrders: { id: string; buyer: string; seller: string; item: string; amount: number; escrowStatus: string }[];
 }
@@ -34,6 +35,18 @@ export function Overview() {
       {data && (
         <>
           <div className="stat-grid">
+            <div className="stat-card">
+              <div className="num">{(data.revenue.buyerProtectionFees + data.revenue.boosts).toFixed(2)} EGP</div>
+              <div className="label">Total platform revenue</div>
+            </div>
+            <div className="stat-card">
+              <div className="num">{data.revenue.buyerProtectionFees.toFixed(2)} EGP</div>
+              <div className="label">Buyer protection fees (5%)</div>
+            </div>
+            <div className="stat-card">
+              <div className="num">{data.revenue.boosts.toFixed(2)} EGP</div>
+              <div className="label">Boost payments</div>
+            </div>
             {Object.entries(STAT_LABELS).map(([key, label]) => (
               <div className="stat-card" key={key}>
                 <div className="num">{data.stats[key] ?? 0}</div>

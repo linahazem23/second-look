@@ -161,6 +161,10 @@ listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ listing: withDiscount(updated) });
 });
 
+// A hard cap per category keeps boosting a real scarce slot instead of a
+// pay-to-win free-for-all that could bury the organic feed under paid ones.
+const MAX_BOOSTED_PER_CATEGORY = 3;
+
 // Boosting only actually flips `boosted: true` once Paymob confirms the charge
 // (via the shared webhook in payments.routes.ts) — this just starts checkout,
 // mirroring how order payments work. Second Look Plus members skip payment
@@ -169,6 +173,12 @@ listingsRouter.post('/:id/boost', requireAuth, async (req: AuthedRequest, res) =
   const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
   if (!listing) return res.status(404).json({ error: 'Listing not found' });
   if (listing.sellerId !== req.userId) return res.status(403).json({ error: 'Not your listing' });
+  if (listing.boosted) return res.status(409).json({ error: 'This listing is already boosted.' });
+
+  const activeBoostedCount = await prisma.listing.count({ where: { category: listing.category, boosted: true, status: 'Active' } });
+  if (activeBoostedCount >= MAX_BOOSTED_PER_CATEGORY) {
+    return res.status(409).json({ error: `Boost slots for ${listing.category} are full right now (${MAX_BOOSTED_PER_CATEGORY}/${MAX_BOOSTED_PER_CATEGORY}). Try again once one clears.` });
+  }
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
   const amount = isPlusActive(user) ? 0 : 25;
