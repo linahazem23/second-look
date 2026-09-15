@@ -38,14 +38,18 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
   const [buyingId, setBuyingId] = useState<string | null>(null);
+  // Separate from `error` (page-load failure) — an action failing here should
+  // surface a message without wiping the whole listings grid off the screen.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   async function buyNow(item: Listing) {
     setBuyingId(item.id);
+    setActionError(null);
     try {
       const res = await api.post('/api/orders', { listingId: item.id });
       onOrderCreated?.(res.order.id);
     } catch (err) {
-      setError(friendlyError(err));
+      setActionError(friendlyError(err));
     } finally {
       setBuyingId(null);
     }
@@ -53,11 +57,12 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
 
   async function messageSeller(item: Listing) {
     setMessagingId(item.id);
+    setActionError(null);
     try {
       const res = await api.post('/api/inquiries', { listingId: item.id });
       onMessageSeller?.(res.inquiry.id);
     } catch (err) {
-      setError(friendlyError(err));
+      setActionError(friendlyError(err));
     } finally {
       setMessagingId(null);
     }
@@ -106,11 +111,16 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   }, [category, sortDir, conditionFilter, areaFilter, sizeFilter, allowOffersOnly]);
 
   async function boostListing(id: string) {
+    setActionError(null);
+    // Optimistic — the badge should appear instantly, not only after the
+    // background reload (which also re-sorts boosted listings to the top).
+    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, boosted: true } : l)));
     try {
       await api.post(`/api/listings/${id}/boost`);
       load();
     } catch (err) {
-      setError(friendlyError(err));
+      setListings((prev) => prev.map((l) => (l.id === id ? { ...l, boosted: false } : l)));
+      setActionError(friendlyError(err));
     }
   }
 
@@ -121,7 +131,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
       else await api.post(`/api/listings/${item.id}/save`);
     } catch (err) {
       setListings((prev) => prev.map((l) => (l.id === item.id ? { ...l, savedByMe: item.savedByMe } : l)));
-      setError(friendlyError(err));
+      setActionError(friendlyError(err));
     }
   }
 
@@ -198,6 +208,11 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
         />
       )}
 
+      {actionError && (
+        <p className="field-error" style={{ margin: '0 18px 10px' }}>
+          {actionError} <button type="button" onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', padding: 0 }}>Dismiss</button>
+        </p>
+      )}
       {loading && <div className="empty-state">Loading listings…</div>}
       {error && <div className="empty-state">{error}</div>}
       {!loading && !error && listings.length === 0 && <div className="empty-state">No listings yet in this category.</div>}
