@@ -332,13 +332,15 @@ model Ad {
 }
 
 model BoostPayment {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  targetType String
-  targetId   String
-  amount     Float
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  targetType    String
+  targetId      String
+  amount        Float
+  paid          Boolean  @default(false)
+  paymobOrderId String?
+  createdAt     DateTime @default(now())
 }
 
 model Chat {

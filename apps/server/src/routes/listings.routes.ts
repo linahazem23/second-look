@@ -4,6 +4,7 @@ import { prisma } from '../lib/db.js';
 import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified, requireCanSell } from '../lib/access.js';
 import { isPlusActive } from '../lib/membership.js';
+import { createPaymobCheckout } from '../lib/paymob.js';
 
 export const listingsRouter = Router();
 
@@ -160,15 +161,44 @@ listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ listing: withDiscount(updated) });
 });
 
+// Boosting only actually flips `boosted: true` once Paymob confirms the charge
+// (via the shared webhook in payments.routes.ts) — this just starts checkout,
+// mirroring how order payments work. Second Look Plus members skip payment
+// entirely since unlimited boosting is their membership perk.
 listingsRouter.post('/:id/boost', requireAuth, async (req: AuthedRequest, res) => {
   const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
   if (!listing) return res.status(404).json({ error: 'Listing not found' });
   if (listing.sellerId !== req.userId) return res.status(403).json({ error: 'Not your listing' });
 
   const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
-  // Unlimited free boosting is the concrete Second Look Plus perk while membership is active.
   const amount = isPlusActive(user) ? 0 : 25;
-  await prisma.boostPayment.create({ data: { userId: req.userId!, targetType: 'listing', targetId: listing.id, amount } });
-  const updated = await prisma.listing.update({ where: { id: listing.id }, data: { boosted: true } });
-  return res.json({ listing: withDiscount(updated), wasFree: amount === 0 });
+
+  if (amount === 0) {
+    await prisma.boostPayment.create({ data: { userId: req.userId!, targetType: 'listing', targetId: listing.id, amount, paid: true } });
+    const updated = await prisma.listing.update({ where: { id: listing.id }, data: { boosted: true } });
+    return res.json({ listing: withDiscount(updated), wasFree: true });
+  }
+
+  const boostPayment = await prisma.boostPayment.create({ data: { userId: req.userId!, targetType: 'listing', targetId: listing.id, amount, paid: false } });
+
+  try {
+    const [firstName, ...rest] = user.fullName.split(' ');
+    const { paymobOrderId, iframeUrl } = await createPaymobCheckout({
+      amountEgp: amount,
+      merchantOrderId: `boost_${boostPayment.id}`,
+      billing: { firstName, lastName: rest.join(' '), email: user.email, phone: '' }
+    });
+    await prisma.boostPayment.update({ where: { id: boostPayment.id }, data: { paymobOrderId } });
+    return res.json({ wasFree: false, boostPaymentId: boostPayment.id, iframeUrl });
+  } catch (err) {
+    return res.status(502).json({ error: err instanceof Error ? err.message : 'Payment provider error' });
+  }
+});
+
+// Polled by the client after opening the Paymob checkout tab, so the "Boosted"
+// badge can appear as soon as the webhook confirms the charge.
+listingsRouter.get('/boost-payments/:id', requireAuth, async (req: AuthedRequest, res) => {
+  const boostPayment = await prisma.boostPayment.findUnique({ where: { id: req.params.id } });
+  if (!boostPayment || boostPayment.userId !== req.userId) return res.status(404).json({ error: 'Not found' });
+  return res.json({ paid: boostPayment.paid });
 });

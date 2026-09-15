@@ -38,6 +38,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
   const [buyingId, setBuyingId] = useState<string | null>(null);
+  const [boostingId, setBoostingId] = useState<string | null>(null);
   // Separate from `error` (page-load failure) — an action failing here should
   // surface a message without wiping the whole listings grid off the screen.
   const [actionError, setActionError] = useState<string | null>(null);
@@ -110,17 +111,52 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, sortDir, conditionFilter, areaFilter, sizeFilter, allowOffersOnly]);
 
+  // Polls until Paymob's webhook marks the boost payment paid, then flips the
+  // badge on — boosting a non-Plus listing is a real 25 EGP charge, so the
+  // listing can't be marked boosted until the money has actually moved.
+  function pollBoostPayment(listingId: string, boostPaymentId: string, attempt = 0) {
+    if (attempt > 40) {
+      setBoostingId((current) => (current === listingId ? null : current));
+      setActionError('Still waiting on that payment — if you completed it, the badge will appear on refresh.');
+      return;
+    }
+    setTimeout(async () => {
+      try {
+        const res = await api.get(`/api/listings/boost-payments/${boostPaymentId}`);
+        if (res.paid) {
+          setListings((prev) => prev.map((l) => (l.id === listingId ? { ...l, boosted: true } : l)));
+          setActionError(null);
+          setBoostingId((current) => (current === listingId ? null : current));
+          return;
+        }
+      } catch {
+        // transient poll error — keep trying
+      }
+      pollBoostPayment(listingId, boostPaymentId, attempt + 1);
+    }, 3000);
+  }
+
   async function boostListing(id: string) {
     setActionError(null);
-    // Optimistic — the badge should appear instantly, not only after the
-    // background reload (which also re-sorts boosted listings to the top).
-    setListings((prev) => prev.map((l) => (l.id === id ? { ...l, boosted: true } : l)));
+    setBoostingId(id);
     try {
-      await api.post(`/api/listings/${id}/boost`);
-      load();
+      const res = await api.post(`/api/listings/${id}/boost`);
+      if (res.wasFree) {
+        setListings((prev) => prev.map((l) => (l.id === id ? { ...l, boosted: true } : l)));
+        setBoostingId(null);
+        return;
+      }
+      const checkoutTab = window.open(res.iframeUrl, '_blank');
+      if (!checkoutTab) {
+        setActionError('Your browser blocked the payment tab. Please allow popups for this site and try boosting again.');
+        setBoostingId(null);
+        return;
+      }
+      setActionError('Complete the 25 EGP payment in the new tab — the Boosted badge appears here automatically once it goes through.');
+      pollBoostPayment(id, res.boostPaymentId);
     } catch (err) {
-      setListings((prev) => prev.map((l) => (l.id === id ? { ...l, boosted: false } : l)));
       setActionError(friendlyError(err));
+      setBoostingId(null);
     }
   }
 
@@ -252,7 +288,9 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
                       </button>
                     ) : (
                       !item.boosted && (
-                        <button className="btn-outline" onClick={() => boostListing(item.id)}>Boost (25 EGP)</button>
+                        <button className="btn-outline" disabled={boostingId === item.id} onClick={() => boostListing(item.id)}>
+                          {boostingId === item.id ? 'Waiting for payment…' : 'Boost (25 EGP)'}
+                        </button>
                       )
                     )}
                     {item.seller.id !== user?.id && (
