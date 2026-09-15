@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/db.js';
 import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
+import { createPaymobCheckout } from '../lib/paymob.js';
 
 export const ordersRouter = Router();
 
@@ -40,12 +41,36 @@ ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, 
   return res.status(201).json({ order });
 });
 
+// Kicks off the real Paymob checkout — auth, order registration, and a payment
+// key — and hands back the hosted iframe URL to redirect the buyer to. Escrow
+// only actually starts once Paymob's webhook confirms a successful charge.
+ordersRouter.post('/:id/pay', requireAuth, async (req: AuthedRequest, res) => {
+  const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { buyer: true } });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.buyerId !== req.userId) return res.status(403).json({ error: 'Only the buyer can pay for this order' });
+  if (order.escrowStatus !== 'AwaitingPayment') return res.status(409).json({ error: 'This order is not awaiting payment' });
+
+  try {
+    const [firstName, ...rest] = order.buyer.fullName.split(' ');
+    const { paymobOrderId, iframeUrl } = await createPaymobCheckout({
+      amountEgp: order.amount,
+      merchantOrderId: order.id,
+      billing: { firstName, lastName: rest.join(' '), email: order.buyer.email, phone: '' }
+    });
+    await prisma.order.update({ where: { id: order.id }, data: { paymobOrderId } });
+    return res.json({ iframeUrl });
+  } catch (err) {
+    return res.status(502).json({ error: err instanceof Error ? err.message : 'Payment provider error' });
+  }
+});
+
 const deliveryMethodSchema = z.object({ deliveryMethod: z.enum(DELIVERY_METHODS) });
 
 ordersRouter.post('/:id/delivery-method', requireAuth, async (req: AuthedRequest, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id } });
   if (!order) return res.status(404).json({ error: 'Order not found' });
   if (order.buyerId !== req.userId && order.sellerId !== req.userId) return res.status(403).json({ error: 'Not your order' });
+  if (order.escrowStatus !== 'InEscrow') return res.status(409).json({ error: 'Delivery method can only be set once payment is confirmed' });
 
   const parsed = deliveryMethodSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });

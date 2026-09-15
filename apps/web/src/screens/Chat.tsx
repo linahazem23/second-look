@@ -6,7 +6,9 @@ import { ProductReviewForm, PersonReviewForm } from './ReviewForms.js';
 import { uploadFile } from '../ImageUpload.js';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
+  AwaitingPayment: 'Waiting for payment',
   InEscrow: 'Payment held safely',
+  PaymentFailed: 'Payment failed',
   PaymentReleased: 'Payment released to seller',
   Disputed: 'Under review'
 };
@@ -436,6 +438,19 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
     }
   }
 
+  async function payNow() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post(`/api/orders/${orderId}/pay`);
+      window.open(res.iframeUrl, '_blank');
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!order) return <div className="empty-state">{error || 'Loading…'}</div>;
 
   const isBuyer = user?.id === order.buyer.id;
@@ -456,7 +471,24 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       </div>
       <div className="mod-banner"><Icon name="flag" size={12} /> Conversations on Second Look may be reviewed for safety.</div>
 
-      {!order.deliveryMethod ? (
+      {order.escrowStatus === 'AwaitingPayment' ? (
+        <div className="plain-card" style={{ margin: '10px 18px 0' }}>
+          <div className="sub">Complete payment to start this order — {order.amount} EGP</div>
+          <div className="row" style={{ marginTop: 8 }}>
+            {isBuyer ? (
+              <button className="btn-solid" disabled={busy} onClick={payNow}>
+                <span className="shine" /><span className="label">{busy ? 'Opening payment…' : 'Pay now'}</span>
+              </button>
+            ) : (
+              <span className="sub">Waiting for the buyer to complete payment.</span>
+            )}
+          </div>
+        </div>
+      ) : order.escrowStatus === 'PaymentFailed' ? (
+        <div className="plain-card" style={{ margin: '10px 18px 0' }}>
+          <div className="sub">Payment didn't go through, so this order didn't proceed. The listing is active again.</div>
+        </div>
+      ) : !order.deliveryMethod ? (
         <div className="plain-card" style={{ margin: '10px 18px 0' }}>
           <div className="sub">How will this item get to you?</div>
           <div className="delivery-pills" style={{ marginTop: 8 }}>

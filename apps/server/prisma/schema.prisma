@@ -35,7 +35,9 @@ enum ListingStatus {
 }
 
 enum OrderEscrowStatus {
+  AwaitingPayment
   InEscrow
+  PaymentFailed
   PaymentReleased
   Disputed
 }
@@ -202,7 +204,8 @@ model Order {
   listing           Listing             @relation(fields: [listingId], references: [id])
   amount            Float
   deliveryMethod    DeliveryMethod?
-  escrowStatus      OrderEscrowStatus   @default(InEscrow)
+  escrowStatus      OrderEscrowStatus   @default(AwaitingPayment)
+  paymobOrderId     String?
   deliveryConfirmed Boolean            @default(false)
   deliveryConfirmedAt DateTime?
   paymentReleasedAt DateTime?
