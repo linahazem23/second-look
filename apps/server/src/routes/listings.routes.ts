@@ -5,6 +5,7 @@ import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified, requireCanSell } from '../lib/access.js';
 import { isPlusActive } from '../lib/membership.js';
 import { createPaymobCheckout } from '../lib/paymob.js';
+import { MAX_DISCOUNT_BY_CONDITION, minAllowedPrice } from '../lib/pricing.js';
 
 export const listingsRouter = Router();
 
@@ -28,6 +29,10 @@ const listingSchema = z
     message: 'Your price must be strictly lower than the original price.',
     path: ['price']
   })
+  .refine((data) => data.price >= minAllowedPrice(data.originalPrice, data.condition), (data) => ({
+    message: `For "${data.condition === 'NeverUsed' ? 'Never used' : data.condition}" items, the price can't be discounted more than ${MAX_DISCOUNT_BY_CONDITION[data.condition] * 100}% off the original — that's ${Math.ceil(minAllowedPrice(data.originalPrice, data.condition))} EGP minimum.`,
+    path: ['price']
+  }))
   .refine((data) => data.category !== 'Clothes' || Boolean(data.size), {
     message: 'Size is required for Clothes listings.',
     path: ['size']
@@ -155,6 +160,12 @@ listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
   const nextOriginal = parsed.data.originalPrice ?? listing.originalPrice;
   if (nextPrice >= nextOriginal) {
     return res.status(422).json({ error: 'Your price must be strictly lower than the original price.' });
+  }
+  const floor = minAllowedPrice(nextOriginal, listing.condition as (typeof CONDITIONS)[number]);
+  if (nextPrice < floor) {
+    return res.status(422).json({
+      error: `For "${listing.condition}" items, the price can't be discounted more than ${MAX_DISCOUNT_BY_CONDITION[listing.condition as (typeof CONDITIONS)[number]] * 100}% off the original — that's ${Math.ceil(floor)} EGP minimum.`
+    });
   }
 
   const updated = await prisma.listing.update({ where: { id: listing.id }, data: parsed.data });

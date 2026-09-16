@@ -38,7 +38,7 @@ adminRouter.post('/me/change-password', async (req: AuthedRequest, res) => {
 
 // ---- Overview ----
 adminRouter.get('/overview', async (_req, res) => {
-  const [activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingVideoSubmissions, recentOrders, ageBuckets, feeRevenue, boostRevenue] =
+  const [activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingGuardianConsents, pendingVideoSubmissions, recentOrders, ageBuckets, feeRevenue, boostRevenue] =
     await Promise.all([
       prisma.user.count({ where: { status: { not: 'Blocked' } } }),
       prisma.listing.count({ where: { status: 'Active' } }),
@@ -47,6 +47,7 @@ adminRouter.get('/overview', async (_req, res) => {
       prisma.appeal.count({ where: { status: 'pending' } }),
       prisma.listingReport.count({ where: { status: 'under_review' } }),
       prisma.user.count({ where: { kycStatus: 'manual_review' } }),
+      prisma.user.count({ where: { guardianConsentStatus: 'pending', guardianIdDocumentUrl: { not: null } } }),
       prisma.videoSubmission.count({ where: { status: 'pending' } }),
       prisma.order.findMany({ take: 10, orderBy: { createdAt: 'desc' }, include: { buyer: true, seller: true, listing: true } }),
       prisma.user.findMany({ select: { age: true } }),
@@ -64,7 +65,7 @@ adminRouter.get('/overview', async (_req, res) => {
   }
 
   return res.json({
-    stats: { activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingVideoSubmissions },
+    stats: { activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingGuardianConsents, pendingVideoSubmissions },
     revenue: {
       buyerProtectionFees: feeRevenue._sum.buyerProtectionFee ?? 0,
       boosts: boostRevenue._sum.amount ?? 0
@@ -132,6 +133,40 @@ adminRouter.post('/kyc-pending/:id/reject', async (req, res) => {
     data: { kycStatus: 'rejected', verifiedFemale: false, kycRejectionReason: parsed.data.reason }
   });
   return res.json({ user: { id: user.id, kycStatus: user.kycStatus }, reason: parsed.data.reason });
+});
+
+// ---- Guardian consent review queue (under-18 signups) ----
+// Only shows submissions the guardian has actually completed (ID uploaded) —
+// not every minor account still waiting on their guardian to act.
+adminRouter.get('/guardian-consent-pending', async (_req, res) => {
+  const users = await prisma.user.findMany({
+    where: { guardianConsentStatus: 'pending', guardianIdDocumentUrl: { not: null } },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true, fullName: true, email: true, age: true, createdAt: true,
+      guardianName: true, guardianPhone: true, guardianEmail: true, guardianIdDocumentUrl: true
+    }
+  });
+  return res.json({ users });
+});
+
+adminRouter.post('/guardian-consent-pending/:id/approve', async (req, res) => {
+  const user = await prisma.user.update({
+    where: { id: req.params.id },
+    data: { guardianConsentStatus: 'approved', guardianRejectionReason: null }
+  });
+  return res.json({ user: { id: user.id, guardianConsentStatus: user.guardianConsentStatus } });
+});
+
+adminRouter.post('/guardian-consent-pending/:id/reject', async (req, res) => {
+  const parsed = z.object({ reason: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const user = await prisma.user.update({
+    where: { id: req.params.id },
+    data: { guardianConsentStatus: 'rejected', guardianRejectionReason: parsed.data.reason }
+  });
+  return res.json({ user: { id: user.id, guardianConsentStatus: user.guardianConsentStatus }, reason: parsed.data.reason });
 });
 
 adminRouter.post('/users/:id/immediate-block', requireRole('super_admin'), async (req: AuthedRequest, res) => {

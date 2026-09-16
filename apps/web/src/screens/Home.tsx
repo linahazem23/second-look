@@ -8,6 +8,7 @@ import { LocationAreaField } from '../LocationArea.js';
 import { Toggle } from '../Toggle.js';
 import { Explore } from './Explore.js';
 import { displayName } from '../identity.js';
+import { MAX_DISCOUNT_BY_CONDITION, minAllowedPrice } from '../pricing.js';
 
 const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
 const CONDITIONS = [
@@ -38,6 +39,7 @@ interface Listing {
 export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAuth }: { onOrderCreated?: (orderId: string) => void; onMessageSeller?: (inquiryId: string) => void; onViewProfile?: (userId: string) => void; onNeedAuth?: () => void }) {
   const { user } = useAuth();
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
+  const [negotiateTarget, setNegotiateTarget] = useState<Listing | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [boostingId, setBoostingId] = useState<string | null>(null);
@@ -72,6 +74,25 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       setMessagingId(null);
     }
   }
+
+  function tapBuy(item: Listing) {
+    if (!user) return onNeedAuth?.();
+    if (item.allowOffers) setNegotiateTarget(item);
+    else buyNow(item);
+  }
+
+  async function sendOffer(item: Listing, amount: number) {
+    setActionError(null);
+    try {
+      const inquiryRes = await api.post('/api/inquiries', { listingId: item.id });
+      await api.post(`/api/inquiries/${inquiryRes.inquiry.id}/offer`, { amount });
+      setNegotiateTarget(null);
+      onMessageSeller?.(inquiryRes.inquiry.id);
+    } catch (err) {
+      setActionError(friendlyError(err));
+    }
+  }
+
   const [category, setCategory] = useState<string>('Skincare');
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -200,6 +221,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
 
   return (
     <>
+      <p className="home-greeting">Hiii Bestie</p>
       <div className="section-head">
         <h1>For you</h1>
         <p>Skincare, makeup, and clothes from verified sellers</p>
@@ -266,6 +288,15 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
         />
       )}
 
+      {negotiateTarget && (
+        <NegotiateModal
+          item={negotiateTarget}
+          onBuyNow={() => { const item = negotiateTarget; setNegotiateTarget(null); buyNow(item); }}
+          onSendOffer={(amount) => sendOffer(negotiateTarget, amount)}
+          onClose={() => setNegotiateTarget(null)}
+        />
+      )}
+
       {actionError && (
         <p className="field-error" style={{ margin: '0 18px 10px' }}>
           {actionError} <button type="button" onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', padding: 0 }}>Dismiss</button>
@@ -291,6 +322,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                     <span className="original-price">{item.originalPrice} EGP</span>
                   </div>
                   <span className="discount-badge">{item.percentOff}% below original</span>
+                  {item.allowOffers && <span className="match-badge" style={{ marginLeft: 6 }}>Negotiable</span>}
                   {item.boosted && <span className="match-badge" style={{ marginLeft: 6 }}>Boosted</span>}
                   <div className="meta">
                     {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition} &middot; {item.area}
@@ -305,7 +337,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                   )}
                   <div className="card-actions" style={{ marginTop: 8 }}>
                     {item.seller.id !== user?.id ? (
-                      <button className="btn-outline" disabled={buyingId === item.id} onClick={() => buyNow(item)}>
+                      <button className="btn-outline" disabled={buyingId === item.id} onClick={() => tapBuy(item)}>
                         {buyingId === item.id ? 'Starting…' : 'Buy'}
                       </button>
                     ) : (
@@ -422,6 +454,49 @@ function FilterSheet(props: FilterSheetProps) {
   );
 }
 
+function NegotiateModal({ item, onBuyNow, onSendOffer, onClose }: {
+  item: Listing;
+  onBuyNow: () => void;
+  onSendOffer: (amount: number) => void;
+  onClose: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  // An offer negotiates below the current asking price, not the pre-discount
+  // original — capped at the listing's own price so an older listing already
+  // priced under the standard floor still has a valid (if narrow) range.
+  const floor = Math.min(minAllowedPrice(item.originalPrice, item.condition), item.price - 1);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(90,46,61,0.32)', zIndex: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div className="post-form" style={{ margin: '0 18px 18px', width: '100%', maxWidth: 394 }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 14.5 }}>{item.title}</h3>
+        <div className="sub">This seller accepts offers — buy now at the listed price, or propose your own.</div>
+
+        <div className="form-row" style={{ marginTop: 14 }}>
+          <button type="button" className="btn-solid" onClick={onBuyNow}>
+            <span className="shine" /><span className="label">Buy now — {item.price} EGP</span>
+          </button>
+        </div>
+
+        <label style={{ marginTop: 14 }}>Or make an offer (EGP)</label>
+        <input type="number" min={Math.ceil(floor)} max={item.price - 1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Between ${Math.ceil(floor)} and ${item.price - 1}`} />
+
+        <div className="form-row">
+          <button type="button" className="btn-cancel" onClick={onClose}>Cancel</button>
+          <button
+            type="button"
+            className="btn-outline"
+            disabled={!amount || Number(amount) < floor || Number(amount) >= item.price}
+            onClick={() => onSendOffer(Number(amount))}
+          >
+            Send offer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SellForm({ onPosted }: { onPosted: () => void }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>('Skincare');
@@ -438,15 +513,18 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
 
   const original = Number(originalPrice);
   const yours = Number(price);
-  const validPrice = originalPrice && price ? yours < original : true;
+  const floor = original > 0 ? minAllowedPrice(original, condition) : 0;
+  const validPrice = originalPrice && price ? yours < original && yours >= floor : true;
   const percentOff = original > 0 && yours > 0 && yours < original ? Math.round(((original - yours) / original) * 100) : null;
+  const maxDiscountPercent = Math.round(MAX_DISCOUNT_BY_CONDITION[condition] * 100);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
     if (photoUrls.length === 0) return setError('At least one photo is required.');
-    if (!validPrice) return setError('Your price must be strictly lower than the original price.');
+    if (yours >= original) return setError('Your price must be strictly lower than the original price.');
+    if (yours < floor) return setError(`For this condition, the price can't be discounted more than ${maxDiscountPercent}% off the original — that's ${Math.ceil(floor)} EGP minimum.`);
     if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
     if (!area) return setError('We need your area to list this item — allow location access or pick one.');
 
@@ -492,18 +570,26 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
         </>
       )}
 
+      <label>How many times used</label>
+      <select value={condition} onChange={(e) => setCondition(e.target.value)}>
+        {CONDITIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+      </select>
+
       <label>Original price (EGP)</label>
       <input required type="number" min={1} value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} />
 
       <label>Your price (EGP)</label>
       <input required type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} />
-      {!validPrice && <p className="field-error">Your price must be strictly lower than the original price.</p>}
-      {percentOff !== null && <p className="discount-hint">{percentOff}% below original price</p>}
-
-      <label>How many times used</label>
-      <select value={condition} onChange={(e) => setCondition(e.target.value)}>
-        {CONDITIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-      </select>
+      {original > 0 && (
+        <p className="discount-hint">
+          For this condition, price can't go below {Math.ceil(floor)} EGP (max {maxDiscountPercent}% off).
+        </p>
+      )}
+      {!validPrice && yours >= original && <p className="field-error">Your price must be strictly lower than the original price.</p>}
+      {!validPrice && yours > 0 && yours < floor && (
+        <p className="field-error">That's discounted more than this condition allows — {Math.ceil(floor)} EGP minimum.</p>
+      )}
+      {validPrice && percentOff !== null && <p className="discount-hint">{percentOff}% below original price</p>}
 
       <label>Reason for selling</label>
       <textarea required rows={2} value={reasonForSelling} onChange={(e) => setReasonForSelling(e.target.value)} />
@@ -515,7 +601,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
       <LocationAreaField value={area} onChange={setArea} />
 
       <div className="toggle-row">
-        <Toggle checked={allowOffers} onChange={setAllowOffers} label="Allow offers" />
+        <Toggle checked={allowOffers} onChange={setAllowOffers} label="Negotiation" />
       </div>
 
       {error && <p className="field-error">{error}</p>}

@@ -71,6 +71,17 @@ model User {
   idDocumentUrl       String?
   selfieUrl           String?
   kycRejectionReason  String?
+  // Under-18 signups aren't blocked outright — a guardian (18+) consents on their
+  // behalf and is the contact point for safety escalations. Verified the same way
+  // as the member's own KYC: a real uploaded ID, reviewed by an admin, not an
+  // automated phone check (no SMS/WhatsApp API is wired up).
+  guardianName            String?
+  guardianPhone           String?
+  guardianEmail           String?
+  guardianConsentStatus   String    @default("not_required") // not_required | pending | approved | rejected
+  guardianIdDocumentUrl   String?
+  guardianConsentToken    String?   @unique
+  guardianRejectionReason String?
   status              UserStatus    @default(Good)
   buyOnlyUntil        DateTime?
   blockedUntil        DateTime?
@@ -379,6 +390,12 @@ model Inquiry {
   sellerLastReadAt DateTime?
   createdAt        DateTime          @default(now())
   messages         InquiryMessage[]
+
+  // Negotiation — only meaningful when the listing allows offers. offerBy names
+  // whose turn it is to respond; accepting creates a real Order at offerAmount.
+  offerAmount   Float?
+  offerStatus   String? // pending | accepted | declined
+  offerByUserId String?
 
   @@unique([listingId, buyerId])
 }

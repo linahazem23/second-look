@@ -19,6 +19,10 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
   const [age, setAge] = useState('');
   const [languagePreference, setLanguagePreference] = useState('en');
   const [referralCode, setReferralCode] = useState(() => new URLSearchParams(window.location.search).get('ref') ?? '');
+  const [guardianName, setGuardianName] = useState('');
+  const [guardianPhone, setGuardianPhone] = useState('');
+  const [guardianEmail, setGuardianEmail] = useState('');
+  const isMinor = age !== '' && Number(age) < 18;
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +44,19 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
     try {
       // AuthContext's signup() already refreshes the current user; App then routes
       // the newly-created (unverified, guidelines-pending) account into onboarding.
-      await signup({ email, password, fullName, area, age: age ? Number(age) : undefined, languagePreference, referralCode: referralCode || undefined, username: username || undefined });
+      await signup({
+        email,
+        password,
+        fullName,
+        area,
+        age: age ? Number(age) : undefined,
+        languagePreference,
+        referralCode: referralCode || undefined,
+        username: username || undefined,
+        guardianName: isMinor ? guardianName : undefined,
+        guardianPhone: isMinor ? guardianPhone : undefined,
+        guardianEmail: isMinor ? guardianEmail : undefined
+      });
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -98,6 +114,22 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
             <input required placeholder="e.g. Maadi" value={area} onChange={(e) => setArea(e.target.value)} />
             <label>Age</label>
             <input type="number" min={1} value={age} onChange={(e) => setAge(e.target.value)} />
+
+            {isMinor && (
+              <div className="plain-card" style={{ margin: '10px 0' }}>
+                <h3>A guardian is required for under 18</h3>
+                <div className="sub">
+                  Someone 18 or older — a sister, mother, or cousin — who'll confirm her own ID and be the safety contact for this account.
+                </div>
+                <label style={{ marginTop: 10 }}>Guardian's full name</label>
+                <input required value={guardianName} onChange={(e) => setGuardianName(e.target.value)} />
+                <label>Guardian's phone number</label>
+                <input required type="tel" placeholder="01xxxxxxxxx" value={guardianPhone} onChange={(e) => setGuardianPhone(e.target.value)} />
+                <label>Guardian's email</label>
+                <input required type="email" value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} />
+              </div>
+            )}
+
             <label>Preferred language</label>
             <select value={languagePreference} onChange={(e) => setLanguagePreference(e.target.value)}>
               <option value="en">English</option>

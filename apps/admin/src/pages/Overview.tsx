@@ -16,7 +16,8 @@ const STAT_LABELS: Record<string, string> = {
   openCases: 'Open moderation cases',
   pendingAppeals: 'Pending appeals',
   pendingReports: 'Reported listings',
-  pendingKyc: 'Pending ID verification'
+  pendingKyc: 'Pending ID verification',
+  pendingGuardianConsents: 'Pending guardian consent'
 };
 
 export function Overview() {

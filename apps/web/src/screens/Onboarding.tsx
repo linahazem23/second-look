@@ -92,7 +92,8 @@ export function KycGate({ onDone }: { onDone: () => void }) {
         <div className="ob-icon-circle">
           <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18 }}>ID</span>
         </div>
-        <h1>Verify it's you</h1>
+        <h1>Verify it's you, Diva</h1>
+        <p className="ob-subnote">It's not you, it's the ID 📸</p>
         <p className="lead">
           We check a government ID and a live selfie to confirm every member is a real, verified woman. This keeps
           Second Look safe for everyone.
@@ -190,7 +191,8 @@ export function ProfileQuizGate({ onDone }: { onDone: () => void }) {
 export const HOW_TO_STEPS = [
   'Get verified once (ID + selfie) — this unlocks buying, selling, and posting.',
   'Browse Skincare, Makeup, or Clothes on Home, or check Explore for listings near you.',
-  'Found something? Tap Buy to start an order — your payment is held safely until you confirm delivery.',
+  'Found something? Tap Buy to pay — Second Look holds your payment, not the seller, until you confirm delivery. The seller is only paid once you confirm, so there\'s always a neutral third party if something goes wrong.',
+  'See "Negotiable" on a listing? You can offer a lower price instead of buying outright — the seller can accept, decline, or counter.',
   'Selling? Tap "+ Sell an item", add photos, a price below the original, and your area.',
   'Chat with the buyer or seller to arrange meetup or delivery — it stays saved on that order.',
   'Something feels wrong? Report it from the listing, the chat, or message Support any time.'

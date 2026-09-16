@@ -5,6 +5,7 @@ import { Icon, categoryIcon } from '../Icon.js';
 import { MultiImageUpload } from '../ImageUpload.js';
 import { Toggle } from '../Toggle.js';
 import { GrowthPanel } from './GrowthPanel.js';
+import { minAllowedPrice } from '../pricing.js';
 
 interface MyListing {
   id: string;
@@ -12,6 +13,7 @@ interface MyListing {
   category: string;
   price: number;
   originalPrice: number;
+  condition: string;
   allowOffers: boolean;
   status: string;
   images: string[];
@@ -210,12 +212,14 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
 
   const original = Number(originalPrice);
   const yours = Number(price);
-  const validPrice = yours < original;
+  const floor = original > 0 ? minAllowedPrice(original, listing.condition) : 0;
+  const validPrice = yours < original && yours >= floor;
   const percentOff = original > 0 && yours > 0 && validPrice ? Math.round(((original - yours) / original) * 100) : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validPrice) return setError('Your price must be strictly lower than the original price.');
+    if (yours >= original) return setError('Your price must be strictly lower than the original price.');
+    if (yours < floor) return setError(`That's discounted more than this condition allows — ${Math.ceil(floor)} EGP minimum.`);
     if (photoUrls.length === 0) return setError('At least one photo is required.');
 
     setBusy(true);
@@ -247,11 +251,12 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
 
       <label>Your price (EGP)</label>
       <input required type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} />
-      {!validPrice && <p className="field-error">Your price must be strictly lower than the original price.</p>}
+      {!validPrice && yours >= original && <p className="field-error">Your price must be strictly lower than the original price.</p>}
+      {!validPrice && yours > 0 && yours < floor && <p className="field-error">That's discounted more than this condition allows — {Math.ceil(floor)} EGP minimum.</p>}
       {percentOff !== null && <p className="discount-hint">{percentOff}% below original price</p>}
 
       <div className="toggle-row">
-        <Toggle checked={allowOffers} onChange={setAllowOffers} label="Allow offers" />
+        <Toggle checked={allowOffers} onChange={setAllowOffers} label="Negotiation" />
       </div>
 
       {error && <p className="field-error">{error}</p>}

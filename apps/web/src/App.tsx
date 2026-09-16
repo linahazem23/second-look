@@ -10,6 +10,7 @@ import { Chat } from './screens/Chat.js';
 import { Reviews } from './screens/Reviews.js';
 import { Community } from './screens/Community.js';
 import { Profile } from './screens/Profile.js';
+import { GuardianConsent } from './screens/GuardianConsent.js';
 import { Icon } from './Icon.js';
 
 type Tab = 'home' | 'want' | 'reviews' | 'community' | 'chat';
@@ -81,6 +82,18 @@ export function App() {
     const interval = setInterval(poll, 20000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [user, tab]);
+
+  // Reached only via a one-time link emailed to a minor's guardian — no
+  // Second Look account involved, so this bypasses auth/loading entirely.
+  // Checked after every hook above so hook order never changes across renders.
+  const guardianConsentToken = new URLSearchParams(window.location.search).get('guardianConsent');
+  if (guardianConsentToken) {
+    return (
+      <div id="phone">
+        <GuardianConsent token={guardianConsentToken} />
+      </div>
+    );
+  }
 
   if (loading) {
     return (

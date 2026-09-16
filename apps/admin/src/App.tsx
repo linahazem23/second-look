@@ -17,14 +17,16 @@ import { Reviews } from './pages/Reviews.js';
 import { Ads } from './pages/Ads.js';
 import { Admins } from './pages/Admins.js';
 import { KycQueue } from './pages/KycQueue.js';
+import { GuardianConsentQueue } from './pages/GuardianConsentQueue.js';
 import { Growth } from './pages/Growth.js';
 
-type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'growth';
+type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'guardian' | 'growth';
 
 const NAV: { id: Page; label: string; icon: Parameters<typeof Icon>[0]['name']; superAdminOnly?: boolean }[] = [
   { id: 'overview', label: 'Overview', icon: 'overview' },
   { id: 'users', label: 'Users', icon: 'users' },
   { id: 'kyc', label: 'ID verification', icon: 'appeals' },
+  { id: 'guardian', label: 'Guardian consent', icon: 'appeals' },
   { id: 'listings', label: 'Listings', icon: 'listings' },
   { id: 'reports', label: 'Reported listings', icon: 'flag' },
   { id: 'orders', label: 'Orders', icon: 'orders' },
@@ -89,6 +91,7 @@ export function App() {
             {page === 'overview' && <Overview />}
             {page === 'users' && <Users />}
             {page === 'kyc' && <KycQueue />}
+            {page === 'guardian' && <GuardianConsentQueue />}
             {page === 'listings' && <Listings />}
             {page === 'reports' && <Reports />}
             {page === 'orders' && <Orders />}

@@ -87,7 +87,13 @@ export function Chat({
     return <ChatThread orderId={activeOrderId} onBack={() => { setActiveOrderId(null); onOpenOrder?.(); }} />;
   }
   if (activeInquiryId) {
-    return <InquiryThread inquiryId={activeInquiryId} onBack={() => { setActiveInquiryId(null); onOpenInquiry?.(); }} />;
+    return (
+      <InquiryThread
+        inquiryId={activeInquiryId}
+        onBack={() => { setActiveInquiryId(null); onOpenInquiry?.(); }}
+        onOrderReady={(orderId) => { setActiveInquiryId(null); setActiveOrderId(orderId); }}
+      />
+    );
   }
   return <ChatList onOpen={setActiveOrderId} onOpenInquiry={setActiveInquiryId} onOpenSupport={() => setShowSupport(true)} />;
 }
@@ -162,12 +168,17 @@ function ChatList({
 
 interface InquiryFull {
   id: string;
-  listing: { title: string; price: number };
+  buyerId: string;
+  sellerId: string;
+  listing: { title: string; price: number; originalPrice: number; allowOffers: boolean; status: string };
   buyer: { id: string; fullName: string; username?: string | null };
   seller: { id: string; fullName: string; username?: string | null };
+  offerAmount: number | null;
+  offerStatus: 'pending' | 'declined' | 'accepted' | null;
+  offerByUserId: string | null;
 }
 
-function InquiryThread({ inquiryId, onBack }: { inquiryId: string; onBack: () => void }) {
+function InquiryThread({ inquiryId, onBack, onOrderReady }: { inquiryId: string; onBack: () => void; onOrderReady?: (orderId: string) => void }) {
   const { user } = useAuth();
   const [inquiry, setInquiry] = useState<InquiryFull | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -175,6 +186,9 @@ function InquiryThread({ inquiryId, onBack }: { inquiryId: string; onBack: () =>
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [attaching, setAttaching] = useState(false);
+  const [offerDraft, setOfferDraft] = useState('');
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [showOfferInput, setShowOfferInput] = useState(false);
 
   async function loadAll() {
     try {
@@ -234,6 +248,41 @@ function InquiryThread({ inquiryId, onBack }: { inquiryId: string; onBack: () =>
     }
   }
 
+  async function sendOffer(e: React.FormEvent) {
+    e.preventDefault();
+    const amount = Number(offerDraft);
+    if (!amount || amount <= 0) return;
+    setOfferBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/inquiries/${inquiryId}/offer`, { amount });
+      setOfferDraft('');
+      setShowOfferInput(false);
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setOfferBusy(false);
+    }
+  }
+
+  async function respondToOffer(action: 'accept' | 'decline') {
+    setOfferBusy(true);
+    setError(null);
+    try {
+      const res = await api.post(`/api/inquiries/${inquiryId}/offer/respond`, { action });
+      if (action === 'accept' && res.orderId) {
+        onOrderReady?.(res.orderId);
+        return;
+      }
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setOfferBusy(false);
+    }
+  }
+
   if (!inquiry) return <div className="empty-state">{error || 'Loading…'}</div>;
 
   const other = user?.id === inquiry.buyer.id ? inquiry.seller : inquiry.buyer;
@@ -268,6 +317,45 @@ function InquiryThread({ inquiryId, onBack }: { inquiryId: string; onBack: () =>
           </div>
         ))}
       </div>
+
+      {inquiry.listing.allowOffers && inquiry.listing.status === 'Active' && (
+        <div className="plain-card" style={{ margin: '0 16px 10px' }}>
+          {inquiry.offerStatus === 'accepted' ? (
+            <div className="sub">Offer accepted at {inquiry.offerAmount} EGP — check your Chat list for the order.</div>
+          ) : inquiry.offerStatus === 'pending' ? (
+            inquiry.offerByUserId === user?.id ? (
+              <div className="sub">Waiting on a response to your offer of <strong>{inquiry.offerAmount} EGP</strong>.</div>
+            ) : (
+              <>
+                <div className="sub">Offered <strong>{inquiry.offerAmount} EGP</strong> (listed at {inquiry.listing.price} EGP)</div>
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button className="btn-solid" disabled={offerBusy} onClick={() => respondToOffer('accept')}>
+                    <span className="shine" /><span className="label">Accept</span>
+                  </button>
+                  <button className="btn-outline" disabled={offerBusy} onClick={() => respondToOffer('decline')}>Decline</button>
+                </div>
+              </>
+            )
+          ) : showOfferInput ? (
+            <form className="row" onSubmit={sendOffer} style={{ marginTop: 0 }}>
+              <input
+                type="number"
+                min={1}
+                placeholder={`Less than ${inquiry.listing.price} EGP`}
+                value={offerDraft}
+                onChange={(e) => setOfferDraft(e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <button type="submit" className="btn-solid" disabled={offerBusy || !offerDraft}>
+                <span className="shine" /><span className="label">Send</span>
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => setShowOfferInput(false)}>Cancel</button>
+            </form>
+          ) : (
+            <button className="btn-outline" onClick={() => setShowOfferInput(true)}>Make an offer</button>
+          )}
+        </div>
+      )}
 
       {error && <p className="field-error" style={{ margin: '0 16px' }}>{error}</p>}
 
@@ -489,6 +577,9 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
               </div>
               <div className="sub" style={{ marginTop: 6, fontSize: 11.5 }}>
                 The protection fee funds identity verification, held payment, and moderation — the seller receives the full {order.listing.price} EGP item price.
+              </div>
+              <div className="sub" style={{ marginTop: 6, fontSize: 11.5 }}>
+                Second Look holds this payment — not the seller. She's only paid once you confirm delivery, so there's always a neutral third party if something goes wrong.
               </div>
             </>
           ) : (

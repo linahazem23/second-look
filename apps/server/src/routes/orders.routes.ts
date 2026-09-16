@@ -4,27 +4,47 @@ import { prisma } from '../lib/db.js';
 import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
 import { createPaymobCheckout } from '../lib/paymob.js';
+import { buyerProtectionFee as calcBuyerProtectionFee } from '../lib/pricing.js';
 
 export const ordersRouter = Router();
 
 const DELIVERY_METHODS = ['Meetup', 'UberCourier', 'InDrive', 'BostaMylerz'] as const;
 const REVIEW_UNLOCK_WAIT_DAYS = 6;
 const SELLER_PLUS_OFFER_THRESHOLD = 5;
-// Funds the escrow/dispute/KYC machinery — charged to the buyer only, never
-// deducted from what the seller receives, so listing this item costs a seller
-// nothing. Lower-value orders get the cheaper rate so the fee never feels
-// disproportionate on a small buy.
-const BUYER_PROTECTION_FEE_TIER_THRESHOLD = 300;
-const BUYER_PROTECTION_FEE_RATE_LOW = 0.03;
-const BUYER_PROTECTION_FEE_RATE_HIGH = 0.05;
-
-function buyerProtectionFeeRate(itemPrice: number): number {
-  return itemPrice < BUYER_PROTECTION_FEE_TIER_THRESHOLD ? BUYER_PROTECTION_FEE_RATE_LOW : BUYER_PROTECTION_FEE_RATE_HIGH;
-}
 
 const createOrderSchema = z.object({
   listingId: z.string().min(1)
 });
+
+/**
+ * Shared by a direct Buy and by an accepted negotiation offer — `priceOverride`
+ * lets an accepted offer create the order at the agreed amount instead of the
+ * listing's asking price. Deal is finalized at payment/escrow, so the listing
+ * comes off the active feed immediately either way.
+ */
+export async function createOrderForListing(listingId: string, buyerId: string, priceOverride?: number) {
+  const listing = await prisma.listing.findUnique({ where: { id: listingId } });
+  if (!listing || listing.status !== 'Active') throw new Error('Listing is not available');
+  if (listing.sellerId === buyerId) throw new Error('You cannot buy your own listing');
+
+  const itemPrice = priceOverride ?? listing.price;
+  const buyerProtectionFee = calcBuyerProtectionFee(itemPrice);
+
+  const [order] = await prisma.$transaction([
+    prisma.order.create({
+      data: {
+        buyerId,
+        sellerId: listing.sellerId,
+        listingId: listing.id,
+        amount: itemPrice + buyerProtectionFee,
+        buyerProtectionFee
+      }
+    }),
+    prisma.listing.update({ where: { id: listing.id }, data: { status: 'Sold' } })
+  ]);
+
+  return order;
+}
 
 // Delivery method is chosen afterwards, from inside the order chat — Buy only
 // starts the payment hold and connects buyer and seller.
@@ -32,27 +52,12 @@ ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, 
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
 
-  const listing = await prisma.listing.findUnique({ where: { id: parsed.data.listingId } });
-  if (!listing || listing.status !== 'Active') return res.status(409).json({ error: 'Listing is not available' });
-  if (listing.sellerId === req.userId) return res.status(422).json({ error: 'You cannot buy your own listing' });
-
-  const buyerProtectionFee = Math.round(listing.price * buyerProtectionFeeRate(listing.price) * 100) / 100;
-
-  const [order] = await prisma.$transaction([
-    prisma.order.create({
-      data: {
-        buyerId: req.userId!,
-        sellerId: listing.sellerId,
-        listingId: listing.id,
-        amount: listing.price + buyerProtectionFee,
-        buyerProtectionFee
-      }
-    }),
-    // Deal is finalized at payment/escrow, so the listing comes off the active feed immediately.
-    prisma.listing.update({ where: { id: listing.id }, data: { status: 'Sold' } })
-  ]);
-
-  return res.status(201).json({ order });
+  try {
+    const order = await createOrderForListing(parsed.data.listingId, req.userId!);
+    return res.status(201).json({ order });
+  } catch (err) {
+    return res.status(409).json({ error: err instanceof Error ? err.message : 'Could not create order' });
+  }
 });
 
 // Kicks off the real Paymob checkout — auth, order registration, and a payment

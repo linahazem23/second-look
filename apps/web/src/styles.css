@@ -63,6 +63,7 @@ nav.bottom-nav button span { font-size: 10.5px; }
 
 main.content { flex: 1; overflow-y: auto; padding-bottom: 8px; }
 
+.home-greeting { font-family: 'Fraunces', serif; font-size: 13.5px; font-weight: 500; color: var(--rose-dark); padding: 14px 18px 0; margin: 0; }
 .section-head { padding: 20px 18px 4px; display: flex; align-items: center; gap: 10px; }
 .section-head h1 { font-family: 'Fraunces', serif; font-size: 22px; font-weight: 500; color: var(--ink); }
 .section-head p { font-size: 12.5px; color: var(--ink-light); margin-top: 4px; }
@@ -127,9 +128,11 @@ textarea.comment-box { width: 100%; margin-top: 10px; border: 0.5px solid var(--
   width: 100%; border: 0.5px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 16px; background: var(--white); color: var(--ink);
 }
 .post-form textarea { resize: none; }
-.post-form .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+.post-form .toggle-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
 
 .toggle-switch-row { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+.post-form .toggle-row .toggle-switch-row { justify-content: center; gap: 10px; width: 100%; }
+.post-form .toggle-row .toggle-switch-row span { font-size: 15px; font-weight: 500; color: var(--ink); }
 .toggle-switch { position: relative; width: 42px; height: 24px; border-radius: 12px; border: none; background: var(--line); flex-shrink: 0; padding: 0; transition: background 0.15s ease; }
 .toggle-switch.on { background: var(--rose); }
 .toggle-knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: var(--card); box-shadow: 0 1px 3px rgba(90, 46, 61, 0.3); transition: transform 0.15s ease; }
@@ -217,6 +220,7 @@ textarea.comment-box { width: 100%; margin-top: 10px; border: 0.5px solid var(--
 .ob-dots div.on { background: var(--rose); }
 .ob-body h1 { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 500; line-height: 1.25; color: var(--ink); }
 .ob-body p.lead { font-size: 13.5px; color: var(--ink-light); margin-top: 10px; line-height: 1.6; }
+.ob-body p.ob-subnote { font-size: 12px; color: var(--rose-dark); font-style: italic; margin-top: 4px; }
 .ob-body label { font-size: 11.5px; color: var(--ink-light); display: block; margin: 14px 0 4px; }
 .how-to-list { margin: 16px 0 0; padding-left: 20px; }
 .how-to-list li { font-size: 13px; color: var(--ink-light); line-height: 1.6; margin-bottom: 8px; }

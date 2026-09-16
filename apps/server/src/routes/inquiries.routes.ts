@@ -4,6 +4,8 @@ import { prisma } from '../lib/db.js';
 import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
 import { notifyNewMessage } from '../lib/email.js';
+import { createOrderForListing } from './orders.routes.js';
+import { minAllowedPrice } from '../lib/pricing.js';
 
 export const inquiriesRouter = Router();
 
@@ -54,7 +56,11 @@ inquiriesRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
 async function assertParticipant(inquiryId: string, userId: string) {
   const inquiry = await prisma.inquiry.findUnique({
     where: { id: inquiryId },
-    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true, username: true, email: true } }, seller: { select: { fullName: true, username: true, email: true } } }
+    include: {
+      listing: { select: { id: true, title: true, allowOffers: true, status: true, price: true, originalPrice: true, condition: true } },
+      buyer: { select: { id: true, fullName: true, username: true, email: true, verifiedFemale: true } },
+      seller: { select: { id: true, fullName: true, username: true, email: true } }
+    }
   });
   if (!inquiry) return null;
   if (inquiry.buyerId !== userId && inquiry.sellerId !== userId) return undefined;
@@ -65,7 +71,7 @@ inquiriesRouter.get('/:id', requireAuth, async (req: AuthedRequest, res) => {
   const inquiry = await prisma.inquiry.findUnique({
     where: { id: req.params.id },
     include: {
-      listing: { select: { title: true, images: true, price: true } },
+      listing: { select: { title: true, images: true, price: true, originalPrice: true, allowOffers: true, status: true } },
       buyer: { select: { id: true, fullName: true, username: true } },
       seller: { select: { id: true, fullName: true, username: true } }
     }
@@ -138,6 +144,117 @@ inquiriesRouter.post('/:id/mark-read', requireAuth, async (req: AuthedRequest, r
   const field = inquiry.buyerId === req.userId ? 'buyerLastReadAt' : 'sellerLastReadAt';
   await prisma.inquiry.update({ where: { id: inquiry.id }, data: { [field]: new Date() } });
   return res.json({ ok: true });
+});
+
+const offerSchema = z.object({ amount: z.number().positive() });
+
+// Either side can open or counter a negotiation — whoever didn't make the most
+// recent offer is the one allowed to respond next (accept/decline) or counter
+// by calling this again themselves.
+inquiriesRouter.post('/:id/offer', requireAuth, async (req: AuthedRequest, res) => {
+  const inquiry = await assertParticipant(req.params.id, req.userId!);
+  if (inquiry === null) return res.status(404).json({ error: 'Inquiry not found' });
+  if (inquiry === undefined) return res.status(403).json({ error: 'Not a participant' });
+
+  if (!inquiry.listing.allowOffers) return res.status(422).json({ error: 'This seller isn\'t accepting offers on this item.' });
+  if (inquiry.listing.status !== 'Active') return res.status(409).json({ error: 'This listing is no longer available.' });
+
+  if (inquiry.offerStatus === 'pending' && inquiry.offerByUserId === req.userId) {
+    return res.status(409).json({ error: 'Waiting on a response to your last offer.' });
+  }
+  if (inquiry.offerStatus === 'accepted') return res.status(409).json({ error: 'An offer on this item was already accepted.' });
+
+  const parsed = offerSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  // An offer negotiates below the current asking price, not the pre-discount
+  // original — capped at the listing's own price so an older listing already
+  // priced under the standard floor still has a valid (if narrow) offer range.
+  const floor = Math.min(minAllowedPrice(inquiry.listing.originalPrice, inquiry.listing.condition), inquiry.listing.price - 1);
+  if (parsed.data.amount >= inquiry.listing.price) {
+    return res.status(422).json({ error: 'An offer should be below the listed price — otherwise just buy at the listed price.' });
+  }
+  if (parsed.data.amount < floor) {
+    return res.status(422).json({ error: `Offers on this item can't go below ${Math.ceil(floor)} EGP.` });
+  }
+
+  const [message] = await prisma.$transaction([
+    prisma.inquiryMessage.create({
+      data: { inquiryId: inquiry.id, senderId: req.userId!, messageText: `Offered ${parsed.data.amount} EGP` }
+    }),
+    prisma.inquiry.update({
+      where: { id: inquiry.id },
+      data: { offerAmount: parsed.data.amount, offerStatus: 'pending', offerByUserId: req.userId }
+    })
+  ]);
+
+  const recipient = inquiry.buyerId === req.userId ? inquiry.seller : inquiry.buyer;
+  const sender = inquiry.buyerId === req.userId ? inquiry.buyer : inquiry.seller;
+  notifyNewMessage({
+    threadType: 'inquiry',
+    threadId: inquiry.id,
+    recipientEmail: recipient.email,
+    recipientName: recipient.fullName,
+    senderName: sender.fullName,
+    itemTitle: inquiry.listing.title,
+    preview: message.messageText
+  }).catch(() => {});
+
+  return res.status(201).json({ offerAmount: parsed.data.amount, offerStatus: 'pending', offerByUserId: req.userId });
+});
+
+const offerResponseSchema = z.object({ action: z.enum(['accept', 'decline']) });
+
+inquiriesRouter.post('/:id/offer/respond', requireAuth, async (req: AuthedRequest, res) => {
+  const inquiry = await assertParticipant(req.params.id, req.userId!);
+  if (inquiry === null) return res.status(404).json({ error: 'Inquiry not found' });
+  if (inquiry === undefined) return res.status(403).json({ error: 'Not a participant' });
+
+  if (inquiry.offerStatus !== 'pending') return res.status(409).json({ error: 'There is no pending offer to respond to.' });
+  if (inquiry.offerByUserId === req.userId) return res.status(403).json({ error: 'You made this offer — waiting on the other side to respond.' });
+
+  const parsed = offerResponseSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  if (parsed.data.action === 'decline') {
+    await prisma.$transaction([
+      prisma.inquiryMessage.create({ data: { inquiryId: inquiry.id, senderId: req.userId!, messageText: 'Declined the offer.' } }),
+      prisma.inquiry.update({ where: { id: inquiry.id }, data: { offerStatus: 'declined' } })
+    ]);
+    return res.json({ offerStatus: 'declined' });
+  }
+
+  // Accept — the order's buyer is always inquiry.buyerId regardless of who
+  // clicked accept, so their verification is what actually gates the charge.
+  if (!inquiry.buyer.verifiedFemale) {
+    return res.status(403).json({ error: 'The buyer needs to complete identity verification before this offer can be accepted.' });
+  }
+
+  let order;
+  try {
+    order = await createOrderForListing(inquiry.listing.id, inquiry.buyerId, inquiry.offerAmount!);
+  } catch (err) {
+    return res.status(409).json({ error: err instanceof Error ? err.message : 'Could not create order' });
+  }
+
+  await prisma.$transaction([
+    prisma.inquiryMessage.create({ data: { inquiryId: inquiry.id, senderId: req.userId!, messageText: `Accepted the offer at ${inquiry.offerAmount} EGP` } }),
+    prisma.inquiry.update({ where: { id: inquiry.id }, data: { offerStatus: 'accepted' } })
+  ]);
+
+  const recipient = inquiry.buyerId === req.userId ? inquiry.seller : inquiry.buyer;
+  const sender = inquiry.buyerId === req.userId ? inquiry.buyer : inquiry.seller;
+  notifyNewMessage({
+    threadType: 'inquiry',
+    threadId: inquiry.id,
+    recipientEmail: recipient.email,
+    recipientName: recipient.fullName,
+    senderName: sender.fullName,
+    itemTitle: inquiry.listing.title,
+    preview: `Accepted the offer at ${inquiry.offerAmount} EGP`
+  }).catch(() => {});
+
+  return res.json({ offerStatus: 'accepted', orderId: order.id });
 });
 
 inquiriesRouter.post('/messages/:id/report', requireAuth, async (req: AuthedRequest, res) => {

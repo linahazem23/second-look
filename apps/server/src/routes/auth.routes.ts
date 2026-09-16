@@ -1,23 +1,35 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import crypto from 'node:crypto';
 import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
+import { notifyGuardianConsentRequest } from '../lib/email.js';
+import { upload, uploadedFileUrl } from '../lib/upload.js';
 
 export const authRouter = Router();
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
+const MINOR_AGE_THRESHOLD = 18;
 
-const signupSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  fullName: z.string().min(1),
-  area: z.string().min(1),
-  age: z.number().int().positive().optional(),
-  languagePreference: z.string().default('en'),
-  referralCode: z.string().optional(),
-  username: z.string().regex(USERNAME_PATTERN, 'Username must be 3-20 letters, numbers, or underscores.').optional()
-});
+const signupSchema = z
+  .object({
+    email: z.string().email(),
+    password: z.string().min(8),
+    fullName: z.string().min(1),
+    area: z.string().min(1),
+    age: z.number().int().positive().optional(),
+    languagePreference: z.string().default('en'),
+    referralCode: z.string().optional(),
+    username: z.string().regex(USERNAME_PATTERN, 'Username must be 3-20 letters, numbers, or underscores.').optional(),
+    guardianName: z.string().min(1).optional(),
+    guardianPhone: z.string().min(6).optional(),
+    guardianEmail: z.string().email().optional()
+  })
+  .refine((d) => d.age === undefined || d.age >= MINOR_AGE_THRESHOLD || Boolean(d.guardianName && d.guardianPhone && d.guardianEmail), {
+    message: "A guardian's name, phone, and email are required for members under 18.",
+    path: ['guardianName']
+  });
 
 authRouter.post('/signup', async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
@@ -31,14 +43,6 @@ authRouter.post('/signup', async (req, res) => {
     if (usernameTaken) return res.status(409).json({ error: 'That username is already taken.' });
   }
 
-  // Under-18 is an explicitly unresolved policy area (legal/child-safety review pending) —
-  // block signup rather than silently deciding a minors pathway.
-  if (parsed.data.age !== undefined && parsed.data.age < 18) {
-    return res.status(422).json({
-      error: 'Second Look is not yet able to support accounts under 18. This is a pending policy decision, not a bug.'
-    });
-  }
-
   // An invalid/unknown referral code is silently ignored rather than blocking signup —
   // referral attribution is a growth nicety, not something worth adding friction for.
   let referredByUserId: string | undefined;
@@ -46,6 +50,12 @@ authRouter.post('/signup', async (req, res) => {
     const referrer = await prisma.user.findUnique({ where: { referralCode: parsed.data.referralCode.toUpperCase() } });
     if (referrer) referredByUserId = referrer.id;
   }
+
+  const isMinor = parsed.data.age !== undefined && parsed.data.age < MINOR_AGE_THRESHOLD;
+  // Real ID + admin review is what actually verifies the guardian is a real
+  // adult — this token just lets her reach that submission form without an
+  // account of her own.
+  const guardianConsentToken = isMinor ? crypto.randomBytes(24).toString('hex') : undefined;
 
   const passwordHash = await hashPassword(parsed.data.password);
   const referralCode = await generateUniqueReferralCode();
@@ -59,9 +69,23 @@ authRouter.post('/signup', async (req, res) => {
       languagePreference: parsed.data.languagePreference,
       username: parsed.data.username,
       referralCode,
-      referredByUserId
+      referredByUserId,
+      guardianName: parsed.data.guardianName,
+      guardianPhone: parsed.data.guardianPhone,
+      guardianEmail: parsed.data.guardianEmail,
+      guardianConsentStatus: isMinor ? 'pending' : 'not_required',
+      guardianConsentToken
     }
   });
+
+  if (isMinor && guardianConsentToken) {
+    notifyGuardianConsentRequest({
+      guardianEmail: parsed.data.guardianEmail!,
+      guardianName: parsed.data.guardianName!,
+      minorName: parsed.data.fullName,
+      token: guardianConsentToken
+    }).catch(() => {});
+  }
 
   const token = signUserToken(user.id);
   return res.status(201).json({
@@ -69,6 +93,51 @@ authRouter.post('/signup', async (req, res) => {
     user: { id: user.id, email: user.email, fullName: user.fullName, username: user.username, kycStatus: user.kycStatus },
     referralApplied: Boolean(referredByUserId)
   });
+});
+
+// Public — the guardian has no Second Look account, so this is reached via a
+// one-time emailed token rather than a login. Limited info only.
+authRouter.get('/guardian-consent/:token', async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { guardianConsentToken: req.params.token } });
+  if (!user) return res.status(404).json({ error: 'This link is invalid or has already been used.' });
+
+  return res.json({
+    minorFullName: user.fullName,
+    minorAge: user.age,
+    guardianName: user.guardianName,
+    status: user.guardianConsentStatus,
+    submitted: Boolean(user.guardianIdDocumentUrl)
+  });
+});
+
+// The guardian uploads her own ID directly here — no account, so this can't
+// go through the normal /api/uploads (which requires a login).
+authRouter.post('/guardian-consent/:token/upload', (req, res) => {
+  upload.single('file')(req, res, async (err) => {
+    if (err) return res.status(422).json({ error: err.message });
+    if (!req.file) return res.status(422).json({ error: 'No file uploaded.' });
+
+    const user = await prisma.user.findUnique({ where: { guardianConsentToken: req.params.token } });
+    if (!user) return res.status(404).json({ error: 'This link is invalid or has already been used.' });
+
+    const url = uploadedFileUrl(req, req.file.filename);
+    await prisma.user.update({ where: { id: user.id }, data: { guardianIdDocumentUrl: url } });
+    return res.status(201).json({ url });
+  });
+});
+
+authRouter.post('/guardian-consent/:token/submit', async (req, res) => {
+  const parsed = z.object({ agreed: z.literal(true) }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: 'You must confirm the consent statement before submitting.' });
+
+  const user = await prisma.user.findUnique({ where: { guardianConsentToken: req.params.token } });
+  if (!user) return res.status(404).json({ error: 'This link is invalid or has already been used.' });
+  if (!user.guardianIdDocumentUrl) return res.status(422).json({ error: 'Upload an ID photo before submitting.' });
+  if (user.guardianConsentStatus !== 'pending') return res.status(409).json({ error: 'This request has already been resolved.' });
+
+  // Stays 'pending' — this just confirms it's ready for an admin to review,
+  // same queue as the member's own KYC.
+  return res.json({ status: 'pending', submitted: true });
 });
 
 authRouter.post('/login', async (req, res) => {

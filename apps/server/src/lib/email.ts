@@ -101,3 +101,37 @@ export async function notifyThreadReply(params: {
     console.error('Failed to send thread-reply notification email', err);
   }
 }
+
+/**
+ * Sent once at signup to a minor's guardian — a real transactional email, not
+ * a repeating notification, so it doesn't go through the debounce map.
+ */
+export async function notifyGuardianConsentRequest(params: {
+  guardianEmail: string;
+  guardianName: string;
+  minorName: string;
+  token: string;
+}) {
+  if (!resend) return;
+
+  const link = `${APP_URL}/?guardianConsent=${params.token}`;
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: params.guardianEmail,
+      subject: `${params.minorName} listed you as her guardian on Second Look`,
+      html: `
+        <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
+          <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
+          <p style="color: #37202A; font-size: 15px;">Hi ${escapeHtml(params.guardianName)}, <strong>${escapeHtml(params.minorName)}</strong> signed up on Second Look — a women-only resale marketplace — and listed you as her guardian since she's under 18.</p>
+          <p style="color: #37202A; font-size: 15px;">To let her buy and sell, we need you to confirm you're her guardian and are 18 or older. This takes two minutes: upload a photo of your own ID and confirm you're okay being the contact point if our safety team ever needs to reach someone about her account.</p>
+          <a href="${link}" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">Review and confirm</a>
+          <p style="color: #9C7684; font-size: 11.5px; margin-top: 28px;">Her account stays limited to browsing until this is confirmed. If you don't recognize this request, you can safely ignore this email.</p>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('Failed to send guardian consent request email', err);
+  }
+}
