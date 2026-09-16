@@ -9,7 +9,7 @@ import { maxAllowedPrice } from '../lib/pricing.js';
 
 export const listingsRouter = Router();
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
 const CONDITIONS = ['NeverUsed', 'UsedOnce', 'UsedAFewTimes', 'RegularlyUsed'] as const;
 
 const listingSchema = z

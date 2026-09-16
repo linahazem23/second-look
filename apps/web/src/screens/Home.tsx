@@ -10,7 +10,7 @@ import { Explore } from './Explore.js';
 import { displayName } from '../identity.js';
 import { maxAllowedPrice } from '../pricing.js';
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
 const BROWSE_CATEGORIES = ['All', ...CATEGORIES] as const;
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },

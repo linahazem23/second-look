@@ -8,7 +8,7 @@ import { GrowthPanel } from './GrowthPanel.js';
 import { LocationAreaField } from '../LocationArea.js';
 import { maxAllowedPrice } from '../pricing.js';
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },
   { value: 'UsedOnce', label: 'Used once' },
