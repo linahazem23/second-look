@@ -130,7 +130,7 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
         <h1>Second Look</h1>
         <p className="lead">
           {reason ??
-            'Buy and sell skincare, makeup, and clothes with identity-verified members, moderated reviews, and demand matching built in.'}
+            'Buy and sell skincare, haircare, makeup, and clothes with identity-verified members, moderated reviews, and demand matching built in.'}
         </p>
 
         {mode === 'login' ? (
