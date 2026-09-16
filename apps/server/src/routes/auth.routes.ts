@@ -5,7 +5,7 @@ import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
 import { notifyGuardianConsentRequest, notifyPasswordReset } from '../lib/email.js';
-import { upload, uploadedFileUrl } from '../lib/upload.js';
+import { upload, uploadToStorage } from '../lib/upload.js';
 
 export const authRouter = Router();
 
@@ -120,7 +120,12 @@ authRouter.post('/guardian-consent/:token/upload', (req, res) => {
     const user = await prisma.user.findUnique({ where: { guardianConsentToken: req.params.token } });
     if (!user) return res.status(404).json({ error: 'This link is invalid or has already been used.' });
 
-    const url = uploadedFileUrl(req, req.file.filename);
+    let url: string;
+    try {
+      url = await uploadToStorage(req.file);
+    } catch {
+      return res.status(502).json({ error: 'Upload failed — please try again.' });
+    }
     await prisma.user.update({ where: { id: user.id }, data: { guardianIdDocumentUrl: url } });
     return res.status(201).json({ url });
   });

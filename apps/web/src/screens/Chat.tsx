@@ -27,6 +27,22 @@ const DELIVERY_METHODS = [
   { value: 'InDrive', label: 'inDrive Delivery', note: 'Book directly with inDrive, share the tracking link in chat' }
 ];
 
+// Not real participants — sentinel senderIds the server uses for the auto tips
+// message and for a real admin joining a conversation after an SOS.
+const SYSTEM_SENDER_ID = 'system';
+const ADMIN_SENDER_ID = 'admin';
+
+function SystemMessageRow({ text, fromAdmin }: { text: string; fromAdmin?: boolean }) {
+  return (
+    <div style={{ alignSelf: 'center', maxWidth: '90%', textAlign: 'center', margin: '4px 0' }}>
+      {fromAdmin && <div className="sub" style={{ fontSize: 10.5, marginBottom: 2 }}>Second Look Support</div>}
+      <div className="bubble" style={{ background: fromAdmin ? 'var(--rose-soft)' : 'var(--card-alt)', color: 'var(--ink)', fontSize: 12.5 }}>
+        {text}
+      </div>
+    </div>
+  );
+}
+
 interface OrderSummary {
   id: string;
   amount: number;
@@ -170,7 +186,7 @@ interface InquiryFull {
   id: string;
   buyerId: string;
   sellerId: string;
-  listing: { title: string; price: number; originalPrice: number; allowOffers: boolean; status: string };
+  listing: { id: string; title: string; price: number; originalPrice: number; allowOffers: boolean; status: string };
   buyer: { id: string; fullName: string; username?: string | null };
   seller: { id: string; fullName: string; username?: string | null };
   offerAmount: number | null;
@@ -189,6 +205,9 @@ function InquiryThread({ inquiryId, onBack, onOrderReady }: { inquiryId: string;
   const [offerDraft, setOfferDraft] = useState('');
   const [offerBusy, setOfferBusy] = useState(false);
   const [showOfferInput, setShowOfferInput] = useState(false);
+  const [buying, setBuying] = useState(false);
+  const [sosBusy, setSosBusy] = useState(false);
+  const [deliveryBusy, setDeliveryBusy] = useState(false);
 
   async function loadAll() {
     try {
@@ -266,6 +285,47 @@ function InquiryThread({ inquiryId, onBack, onOrderReady }: { inquiryId: string;
     }
   }
 
+  async function buyNow() {
+    if (!inquiry) return;
+    setBuying(true);
+    setError(null);
+    try {
+      const res = await api.post('/api/orders', { listingId: inquiry.listing.id });
+      onOrderReady?.(res.order.id);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBuying(false);
+    }
+  }
+
+  async function suggestDelivery(label: string) {
+    setDeliveryBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/inquiries/${inquiryId}/messages`, { messageText: `📦 I suggest: ${label}` });
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setDeliveryBusy(false);
+    }
+  }
+
+  async function callSos() {
+    if (!window.confirm("This brings a real Second Look team member into this chat to help sort things out. Continue?")) return;
+    setSosBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/inquiries/${inquiryId}/sos`);
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setSosBusy(false);
+    }
+  }
+
   async function respondToOffer(action: 'accept' | 'decline') {
     setOfferBusy(true);
     setError(null);
@@ -286,6 +346,8 @@ function InquiryThread({ inquiryId, onBack, onOrderReady }: { inquiryId: string;
   if (!inquiry) return <div className="empty-state">{error || 'Loading…'}</div>;
 
   const other = user?.id === inquiry.buyer.id ? inquiry.seller : inquiry.buyer;
+  const hasStartedChatting = messages.some((m) => m.senderId !== SYSTEM_SENDER_ID && m.senderId !== ADMIN_SENDER_ID);
+  const canBuy = inquiry.listing.status === 'Active' && inquiry.offerStatus !== 'accepted';
 
   return (
     <div id="chat-thread">
@@ -295,27 +357,53 @@ function InquiryThread({ inquiryId, onBack, onOrderReady }: { inquiryId: string;
           <div className="t-name">{displayName(other)}</div>
           <div className="t-sub">{inquiry.listing.title} &middot; {inquiry.listing.price} EGP &middot; Question</div>
         </div>
+        <button className="sos-btn" disabled={sosBusy} onClick={callSos}>SOS</button>
       </div>
       <div className="mod-banner"><Icon name="flag" size={12} /> Conversations on Second Look may be reviewed for safety.</div>
 
-      <div className="messages">
-        {messages.map((m) => (
-          <div key={m.id} style={{ alignSelf: m.senderId === user?.id ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-            {m.attachmentUrl && (
-              <div className={`bubble attachment ${m.senderId === user?.id ? 'me' : 'them'}`}>
-                {m.attachmentType === 'video' ? <video src={m.attachmentUrl} controls /> : <img src={m.attachmentUrl} alt="Attachment" />}
-              </div>
-            )}
-            {m.messageText && (
-              <div className={`bubble ${m.senderId === user?.id ? 'me' : 'them'}`}>{m.messageText}</div>
-            )}
-            {m.senderId !== user?.id && (
-              <button style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--ink-faint)', padding: 0 }} onClick={() => reportMessage(m.id)}>
-                Report
+      {canBuy && (
+        <div className="plain-card" style={{ margin: '10px 16px 0' }}>
+          <button className="btn-solid" style={{ width: '100%' }} disabled={buying} onClick={buyNow}>
+            <span className="shine" /><span className="label">{buying ? 'Starting…' : `Buy now — ${inquiry.listing.price} EGP`}</span>
+          </button>
+        </div>
+      )}
+
+      {hasStartedChatting && canBuy && (
+        <div className="plain-card" style={{ margin: '10px 16px 0' }}>
+          <div className="sub">How will this item get to her?</div>
+          <div className="delivery-pills" style={{ marginTop: 8 }}>
+            {DELIVERY_METHODS.map((m) => (
+              <button key={m.value} type="button" className="delivery-pill" disabled={deliveryBusy} onClick={() => suggestDelivery(m.label)}>
+                {m.label}
               </button>
-            )}
+            ))}
           </div>
-        ))}
+        </div>
+      )}
+
+      <div className="messages">
+        {messages.map((m) =>
+          m.senderId === SYSTEM_SENDER_ID || m.senderId === ADMIN_SENDER_ID ? (
+            <SystemMessageRow key={m.id} text={m.messageText} fromAdmin={m.senderId === ADMIN_SENDER_ID} />
+          ) : (
+            <div key={m.id} style={{ alignSelf: m.senderId === user?.id ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+              {m.attachmentUrl && (
+                <div className={`bubble attachment ${m.senderId === user?.id ? 'me' : 'them'}`}>
+                  {m.attachmentType === 'video' ? <video src={m.attachmentUrl} controls /> : <img src={m.attachmentUrl} alt="Attachment" />}
+                </div>
+              )}
+              {m.messageText && (
+                <div className={`bubble ${m.senderId === user?.id ? 'me' : 'them'}`}>{m.messageText}</div>
+              )}
+              {m.senderId !== user?.id && (
+                <button style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--ink-faint)', padding: 0 }} onClick={() => reportMessage(m.id)}>
+                  Report
+                </button>
+              )}
+            </div>
+          )
+        )}
       </div>
 
       {inquiry.listing.allowOffers && inquiry.listing.status === 'Active' && (
@@ -408,6 +496,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
   const [showTrackingInput, setShowTrackingInput] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState('');
   const [showMonetizationPrompt, setShowMonetizationPrompt] = useState(false);
+  const [sosBusy, setSosBusy] = useState(false);
 
   async function loadAll() {
     try {
@@ -504,6 +593,20 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
     }
   }
 
+  async function callSos() {
+    if (!window.confirm("This brings a real Second Look team member into this chat to help sort things out. Continue?")) return;
+    setSosBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/orders/${orderId}/sos`);
+      loadAll();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setSosBusy(false);
+    }
+  }
+
   async function raiseDispute() {
     setBusy(true);
     try {
@@ -558,6 +661,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
             {order.deliveryMethod && <> &middot; {DELIVERY_LABELS[order.deliveryMethod]}</>}
           </div>
         </div>
+        <button className="sos-btn" disabled={sosBusy} onClick={callSos}>SOS</button>
       </div>
       <div className="mod-banner"><Icon name="flag" size={12} /> Conversations on Second Look may be reviewed for safety.</div>
 
@@ -662,27 +766,31 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       )}
 
       <div className="messages">
-        {messages.map((m) => (
-          <div key={m.id} style={{ alignSelf: m.senderId === user?.id ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-            {m.attachmentUrl && (
-              <div className={`bubble attachment ${m.senderId === user?.id ? 'me' : 'them'}`}>
-                {m.attachmentType === 'video' ? (
-                  <video src={m.attachmentUrl} controls />
-                ) : (
-                  <img src={m.attachmentUrl} alt="Attachment" />
-                )}
-              </div>
-            )}
-            {m.messageText && (
-              <div className={`bubble ${m.senderId === user?.id ? 'me' : 'them'}`}>{m.messageText}</div>
-            )}
-            {m.senderId !== user?.id && (
-              <button style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--ink-faint)', padding: 0 }} onClick={() => reportMessage(m.id)}>
-                Report
-              </button>
-            )}
-          </div>
-        ))}
+        {messages.map((m) =>
+          m.senderId === SYSTEM_SENDER_ID || m.senderId === ADMIN_SENDER_ID ? (
+            <SystemMessageRow key={m.id} text={m.messageText} fromAdmin={m.senderId === ADMIN_SENDER_ID} />
+          ) : (
+            <div key={m.id} style={{ alignSelf: m.senderId === user?.id ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+              {m.attachmentUrl && (
+                <div className={`bubble attachment ${m.senderId === user?.id ? 'me' : 'them'}`}>
+                  {m.attachmentType === 'video' ? (
+                    <video src={m.attachmentUrl} controls />
+                  ) : (
+                    <img src={m.attachmentUrl} alt="Attachment" />
+                  )}
+                </div>
+              )}
+              {m.messageText && (
+                <div className={`bubble ${m.senderId === user?.id ? 'me' : 'them'}`}>{m.messageText}</div>
+              )}
+              {m.senderId !== user?.id && (
+                <button style={{ background: 'none', border: 'none', fontSize: 10, color: 'var(--ink-faint)', padding: 0 }} onClick={() => reportMessage(m.id)}>
+                  Report
+                </button>
+              )}
+            </div>
+          )
+        )}
       </div>
 
       {error && <p className="field-error" style={{ margin: '0 16px' }}>{error}</p>}

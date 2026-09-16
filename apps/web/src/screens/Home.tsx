@@ -43,30 +43,17 @@ interface Listing {
 export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAuth }: { onOrderCreated?: (orderId: string) => void; onMessageSeller?: (inquiryId: string) => void; onViewProfile?: (userId: string) => void; onNeedAuth?: () => void }) {
   const { user } = useAuth();
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
-  const [negotiateTarget, setNegotiateTarget] = useState<Listing | null>(null);
   const [viewingItem, setViewingItem] = useState<Listing | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
-  const [buyingId, setBuyingId] = useState<string | null>(null);
   const [boostingId, setBoostingId] = useState<string | null>(null);
   // Separate from `error` (page-load failure) — an action failing here should
   // surface a message without wiping the whole listings grid off the screen.
   const [actionError, setActionError] = useState<string | null>(null);
 
-  async function buyNow(item: Listing) {
-    if (!user) return onNeedAuth?.();
-    setBuyingId(item.id);
-    setActionError(null);
-    try {
-      const res = await api.post('/api/orders', { listingId: item.id });
-      onOrderCreated?.(res.order.id);
-    } catch (err) {
-      setActionError(friendlyError(err));
-    } finally {
-      setBuyingId(null);
-    }
-  }
-
-  async function messageSeller(item: Listing) {
+  // Buy always opens the chat with the seller first — arranging delivery (and
+  // negotiating, if she allows offers) happens there, with "Buy now" itself
+  // available from inside that chat once they're actually ready to commit.
+  async function tapBuy(item: Listing) {
     if (!user) return onNeedAuth?.();
     setMessagingId(item.id);
     setActionError(null);
@@ -77,24 +64,6 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       setActionError(friendlyError(err));
     } finally {
       setMessagingId(null);
-    }
-  }
-
-  function tapBuy(item: Listing) {
-    if (!user) return onNeedAuth?.();
-    if (item.allowOffers) setNegotiateTarget(item);
-    else buyNow(item);
-  }
-
-  async function sendOffer(item: Listing, amount: number) {
-    setActionError(null);
-    try {
-      const inquiryRes = await api.post('/api/inquiries', { listingId: item.id });
-      await api.post(`/api/inquiries/${inquiryRes.inquiry.id}/offer`, { amount });
-      setNegotiateTarget(null);
-      onMessageSeller?.(inquiryRes.inquiry.id);
-    } catch (err) {
-      setActionError(friendlyError(err));
     }
   }
 
@@ -298,25 +267,14 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
         />
       )}
 
-      {negotiateTarget && (
-        <NegotiateModal
-          item={negotiateTarget}
-          onBuyNow={() => { const item = negotiateTarget; setNegotiateTarget(null); buyNow(item); }}
-          onSendOffer={(amount) => sendOffer(negotiateTarget, amount)}
-          onClose={() => setNegotiateTarget(null)}
-        />
-      )}
-
       {viewingItem && (
         <ListingDetailModal
           item={viewingItem}
           isOwner={viewingItem.seller.id === user?.id}
-          buying={buyingId === viewingItem.id}
-          messaging={messagingId === viewingItem.id}
+          buying={messagingId === viewingItem.id}
           boosting={boostingId === viewingItem.id}
           onClose={() => setViewingItem(null)}
           onBuy={() => tapBuy(viewingItem)}
-          onMessage={() => messageSeller(viewingItem)}
           onToggleSave={() => toggleSave(viewingItem)}
           onReport={() => { setViewingItem(null); setReportTarget(viewingItem); }}
           onBoost={() => boostListing(viewingItem.id)}
@@ -366,8 +324,8 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                   )}
                   <div className="card-actions" style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
                     {item.seller.id !== user?.id ? (
-                      <button className="btn-outline" disabled={buyingId === item.id} onClick={() => tapBuy(item)}>
-                        {buyingId === item.id ? 'Starting…' : 'Buy'}
+                      <button className="btn-outline" disabled={messagingId === item.id} onClick={() => tapBuy(item)}>
+                        {messagingId === item.id ? 'Starting…' : 'Buy'}
                       </button>
                     ) : (
                       !item.boosted && (
@@ -375,16 +333,6 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                           {boostingId === item.id ? 'Waiting for payment…' : 'Boost (25 EGP)'}
                         </button>
                       )
-                    )}
-                    {item.seller.id !== user?.id && (
-                      <button
-                        className="card-icon-btn"
-                        aria-label="Message seller"
-                        disabled={messagingId === item.id}
-                        onClick={(e) => { e.stopPropagation(); messageSeller(item); }}
-                      >
-                        <Icon name="chat" size={13} />
-                      </button>
                     )}
                     <button
                       className="card-icon-btn"
@@ -495,55 +443,13 @@ function FilterSheet(props: FilterSheetProps) {
   );
 }
 
-function NegotiateModal({ item, onBuyNow, onSendOffer, onClose }: {
-  item: Listing;
-  onBuyNow: () => void;
-  onSendOffer: (amount: number) => void;
-  onClose: () => void;
-}) {
-  const [amount, setAmount] = useState('');
-  const floor = 1;
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(90,46,61,0.32)', zIndex: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div className="post-form" style={{ margin: '0 18px 18px', width: '100%', maxWidth: 394 }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 14.5 }}>{item.title}</h3>
-        <div className="sub">This seller accepts offers — buy now at the listed price, or propose your own.</div>
-
-        <div className="form-row" style={{ marginTop: 14 }}>
-          <button type="button" className="btn-solid" onClick={onBuyNow}>
-            <span className="shine" /><span className="label">Buy now — {item.price} EGP</span>
-          </button>
-        </div>
-
-        <label style={{ marginTop: 14 }}>Or make an offer (EGP)</label>
-        <input type="number" min={Math.ceil(floor)} max={item.price - 1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Between ${Math.ceil(floor)} and ${item.price - 1}`} />
-
-        <div className="form-row">
-          <button type="button" className="btn-cancel" onClick={onClose}>Cancel</button>
-          <button
-            type="button"
-            className="btn-outline"
-            disabled={!amount || Number(amount) < floor || Number(amount) >= item.price}
-            onClick={() => onSendOffer(Number(amount))}
-          >
-            Send offer
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ListingDetailModal({ item, isOwner, buying, messaging, boosting, onClose, onBuy, onMessage, onToggleSave, onReport, onBoost, onViewProfile }: {
+function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, onToggleSave, onReport, onBoost, onViewProfile }: {
   item: Listing;
   isOwner: boolean;
   buying: boolean;
-  messaging: boolean;
   boosting: boolean;
   onClose: () => void;
   onBuy: () => void;
-  onMessage: () => void;
   onToggleSave: () => void;
   onReport: () => void;
   onBoost: () => void;
@@ -645,11 +551,6 @@ function ListingDetailModal({ item, isOwner, buying, messaging, boosting, onClos
                     {boosting ? 'Waiting for payment…' : 'Boost (25 EGP)'}
                   </button>
                 )
-              )}
-              {!isOwner && (
-                <button className="card-icon-btn" aria-label="Message seller" disabled={messaging} onClick={onMessage}>
-                  <Icon name="chat" size={13} />
-                </button>
               )}
               <button
                 className="card-icon-btn"

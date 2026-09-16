@@ -17,6 +17,22 @@ syncAppHeight();
 window.addEventListener('resize', syncAppHeight);
 window.visualViewport?.addEventListener('resize', syncAppHeight);
 
+// Installed as a home-screen app (standalone display mode), iOS/Android keep
+// the same page instance alive in the background instead of re-navigating to
+// it — so unlike a browser tab, reopening it shows whatever was on screen
+// minutes or hours ago with no built-in refresh. Force one after a real gap.
+let hiddenAt: number | null = null;
+const REFRESH_AFTER_HIDDEN_MS = 60 * 1000;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    hiddenAt = Date.now();
+  } else if (document.visibilityState === 'visible' && hiddenAt !== null) {
+    const wasHiddenFor = Date.now() - hiddenAt;
+    hiddenAt = null;
+    if (wasHiddenFor > REFRESH_AFTER_HIDDEN_MS) window.location.reload();
+  }
+});
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <AuthProvider>

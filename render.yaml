@@ -29,6 +29,14 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT_URL_S3
+        sync: false
+      - key: AWS_REGION
+        sync: false
       - key: PORT
         value: 4000
       - key: NODE_VERSION

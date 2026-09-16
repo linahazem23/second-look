@@ -8,10 +8,22 @@ import { createOrderForListing } from './orders.routes.js';
 
 export const inquiriesRouter = Router();
 
+// Not a real user — these sentinel sender ids mark a message as system-authored
+// (the auto tips message, an SOS notice) rather than from the buyer or seller.
+// senderId has no foreign-key constraint on InquiryMessage, so this is safe.
+export const SYSTEM_SENDER_ID = 'system';
+export const ADMIN_SENDER_ID = 'admin';
+
+const TIPS_MESSAGE =
+  "Hiii besties 💕 girl to girl: be upfront about condition and price, and agree on a delivery method here " +
+  "before anything ships. When you're both ready, tap \"Buy now\" to pay safely — Second Look holds the payment " +
+  "until delivery is confirmed, so neither of you is stuck trusting a stranger blind.";
+
 const startSchema = z.object({ listingId: z.string().min(1) });
 
-// Find-or-create so tapping "Message seller" more than once on the same listing
-// always lands back on the same thread instead of spawning duplicates.
+// Find-or-create so tapping "Buy" more than once on the same listing always
+// lands back on the same thread instead of spawning duplicates. A tips message
+// is posted automatically, but only the first time this thread is created.
 inquiriesRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
   const parsed = startSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
@@ -20,11 +32,25 @@ inquiriesRouter.post('/', requireAuth, async (req: AuthedRequest, res) => {
   if (!listing) return res.status(404).json({ error: 'Listing not found' });
   if (listing.sellerId === req.userId) return res.status(422).json({ error: 'You cannot message yourself about your own listing' });
 
-  const inquiry = await prisma.inquiry.upsert({
-    where: { listingId_buyerId: { listingId: listing.id, buyerId: req.userId! } },
-    update: {},
-    create: { listingId: listing.id, buyerId: req.userId!, sellerId: listing.sellerId }
+  let inquiry = await prisma.inquiry.findUnique({
+    where: { listingId_buyerId: { listingId: listing.id, buyerId: req.userId! } }
   });
+
+  if (!inquiry) {
+    try {
+      inquiry = await prisma.inquiry.create({
+        data: { listingId: listing.id, buyerId: req.userId!, sellerId: listing.sellerId }
+      });
+      await prisma.inquiryMessage.create({
+        data: { inquiryId: inquiry.id, senderId: SYSTEM_SENDER_ID, messageText: TIPS_MESSAGE }
+      });
+    } catch {
+      // Lost a race with a duplicate request — the other one already created it.
+      inquiry = await prisma.inquiry.findUniqueOrThrow({
+        where: { listingId_buyerId: { listingId: listing.id, buyerId: req.userId! } }
+      });
+    }
+  }
 
   return res.status(201).json({ inquiry });
 });
@@ -70,7 +96,7 @@ inquiriesRouter.get('/:id', requireAuth, async (req: AuthedRequest, res) => {
   const inquiry = await prisma.inquiry.findUnique({
     where: { id: req.params.id },
     include: {
-      listing: { select: { title: true, images: true, price: true, originalPrice: true, allowOffers: true, status: true } },
+      listing: { select: { id: true, title: true, images: true, price: true, originalPrice: true, allowOffers: true, status: true } },
       buyer: { select: { id: true, fullName: true, username: true } },
       seller: { select: { id: true, fullName: true, username: true } }
     }
@@ -247,6 +273,37 @@ inquiriesRouter.post('/:id/offer/respond', requireAuth, async (req: AuthedReques
   }).catch(() => {});
 
   return res.json({ offerStatus: 'accepted', orderId: order.id });
+});
+
+// Escalates this specific conversation to a human — a moderation case opens
+// (visible in the existing admin queue) and a system message tells both
+// participants support has been looped in, so admin can reply right into
+// this same thread as ADMIN_SENDER_ID once they see it.
+inquiriesRouter.post('/:id/sos', requireAuth, async (req: AuthedRequest, res) => {
+  const inquiry = await assertParticipant(req.params.id, req.userId!);
+  if (inquiry === null) return res.status(404).json({ error: 'Inquiry not found' });
+  if (inquiry === undefined) return res.status(403).json({ error: 'Not a participant' });
+
+  const requester = req.userId === inquiry.buyerId ? 'the buyer' : 'the seller';
+  await prisma.$transaction([
+    prisma.moderationCase.create({
+      data: {
+        contextType: 'inquiry',
+        contextId: inquiry.id,
+        reason: `SOS raised by ${requester} on "${inquiry.listing.title}"`,
+        status: 'open'
+      }
+    }),
+    prisma.inquiryMessage.create({
+      data: {
+        inquiryId: inquiry.id,
+        senderId: SYSTEM_SENDER_ID,
+        messageText: '🆘 Second Look Support has been notified and will join this chat shortly.'
+      }
+    })
+  ]);
+
+  return res.status(201).json({ ok: true });
 });
 
 inquiriesRouter.post('/messages/:id/report', requireAuth, async (req: AuthedRequest, res) => {

@@ -267,6 +267,56 @@ adminRouter.post('/orders/:id/resolve-dispute', async (req: AuthedRequest, res) 
   return res.json({ order: updated });
 });
 
+// ---- Joining a flagged conversation (SOS) ----
+// A moderation case with contextType 'inquiry'/'order' points at a real chat
+// thread — these let admin read it and post into it as a visible third party,
+// using the same senderId sentinel the SOS system message already uses.
+adminRouter.get('/inquiries/:id/messages', async (req, res) => {
+  const inquiry = await prisma.inquiry.findUnique({
+    where: { id: req.params.id },
+    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true } }, seller: { select: { fullName: true } } }
+  });
+  if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' });
+  const messages = await prisma.inquiryMessage.findMany({ where: { inquiryId: inquiry.id }, orderBy: { createdAt: 'asc' } });
+  return res.json({ inquiry, messages });
+});
+
+adminRouter.post('/inquiries/:id/messages', async (req, res) => {
+  const parsed = z.object({ body: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const inquiry = await prisma.inquiry.findUnique({ where: { id: req.params.id } });
+  if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' });
+
+  const message = await prisma.inquiryMessage.create({
+    data: { inquiryId: inquiry.id, senderId: 'admin', messageText: parsed.data.body }
+  });
+  return res.status(201).json({ message });
+});
+
+adminRouter.get('/order-chats/:id/messages', async (req, res) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true } }, seller: { select: { fullName: true } } }
+  });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  const messages = await prisma.chat.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'asc' } });
+  return res.json({ order, messages });
+});
+
+adminRouter.post('/order-chats/:id/messages', async (req, res) => {
+  const parsed = z.object({ body: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+
+  const message = await prisma.chat.create({
+    data: { orderId: order.id, senderId: 'admin', messageText: parsed.data.body }
+  });
+  return res.status(201).json({ message });
+});
+
 // ---- Moderation queue ----
 adminRouter.get('/moderation-cases', async (req, res) => {
   const status = (req.query.status as string) ?? 'open';

@@ -188,6 +188,36 @@ ordersRouter.post('/:id/confirm-delivery', requireAuth, async (req: AuthedReques
   return res.json({ order: updatedOrder, offerMonetizationChoice });
 });
 
+// Mirrors the same escalation on an inquiry — opens a moderation case and
+// drops a system notice into the order's own chat so admin can reply directly
+// into it (as 'admin') once they pick up the case.
+ordersRouter.post('/:id/sos', requireAuth, async (req: AuthedRequest, res) => {
+  const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { listing: { select: { title: true } } } });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.buyerId !== req.userId && order.sellerId !== req.userId) return res.status(403).json({ error: 'Not your order' });
+
+  const requester = req.userId === order.buyerId ? 'the buyer' : 'the seller';
+  await prisma.$transaction([
+    prisma.moderationCase.create({
+      data: {
+        contextType: 'order',
+        contextId: order.id,
+        reason: `SOS raised by ${requester} on "${order.listing.title}"`,
+        status: 'open'
+      }
+    }),
+    prisma.chat.create({
+      data: {
+        orderId: order.id,
+        senderId: 'system',
+        messageText: '🆘 Second Look Support has been notified and will join this chat shortly.'
+      }
+    })
+  ]);
+
+  return res.status(201).json({ ok: true });
+});
+
 ordersRouter.post('/:id/dispute', requireAuth, async (req: AuthedRequest, res) => {
   const order = await prisma.order.findUnique({ where: { id: req.params.id } });
   if (!order) return res.status(404).json({ error: 'Order not found' });

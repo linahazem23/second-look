@@ -1,0 +1,14 @@
+{
+  "name": "Second Look",
+  "short_name": "Second Look",
+  "description": "Women-only resale marketplace in Egypt — skincare, makeup, and clothes from verified sellers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FBEAF0",
+  "theme_color": "#D4638A",
+  "icons": [
+    { "src": "/favicon-256.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

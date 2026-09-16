@@ -1,8 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { authRouter } from './routes/auth.routes.js';
 import { uploadsRouter } from './routes/uploads.routes.js';
 import { listingsRouter } from './routes/listings.routes.js';
@@ -32,9 +30,6 @@ app.set('trust proxy', 1);
 
 app.use(cors());
 app.use(express.json());
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'second-look-server', timestamp: new Date().toISOString() });
