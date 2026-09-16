@@ -54,7 +54,7 @@ listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
     sortBy === 'price' ? { price: sortDir === 'desc' ? 'desc' : 'asc' } : { createdAt: 'desc' }
   ];
 
-  const listings = await prisma.listing.findMany({ where, orderBy, include: { seller: { select: { id: true, fullName: true, area: true } } } });
+  const listings = await prisma.listing.findMany({ where, orderBy, include: { seller: { select: { id: true, fullName: true, username: true, area: true } } } });
 
   let savedIds = new Set<string>();
   if (req.userId) {
@@ -77,7 +77,7 @@ listingsRouter.get('/saved', requireAuth, async (req: AuthedRequest, res) => {
   const saved = await prisma.savedListing.findMany({
     where: { userId: req.userId },
     orderBy: { createdAt: 'desc' },
-    include: { listing: { include: { seller: { select: { id: true, fullName: true, area: true } } } } }
+    include: { listing: { include: { seller: { select: { id: true, fullName: true, username: true, area: true } } } } }
   });
   return res.json({ listings: saved.map((s) => withDiscount(s.listing)) });
 });
@@ -114,7 +114,7 @@ listingsRouter.get('/areas', async (_req, res) => {
 listingsRouter.get('/:id', async (req, res) => {
   const listing = await prisma.listing.findUnique({
     where: { id: req.params.id },
-    include: { seller: { select: { id: true, fullName: true, area: true } } }
+    include: { seller: { select: { id: true, fullName: true, username: true, area: true } } }
   });
   if (!listing) return res.status(404).json({ error: 'Listing not found' });
   return res.json({ listing: withDiscount(listing) });

@@ -27,7 +27,7 @@ interface SavedListing {
 }
 
 export function Profile({ onBack }: { onBack: () => void }) {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [listings, setListings] = useState<MyListing[]>([]);
   const [saved, setSaved] = useState<SavedListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +73,8 @@ export function Profile({ onBack }: { onBack: () => void }) {
         </div>
         {isNewSeller && <span className="match-badge" style={{ marginTop: 10, display: 'inline-block' }}>New here — be one of her first sales!</span>}
       </div>
+
+      <UsernameCard username={user.username} onSaved={refresh} />
 
       <GrowthPanel />
 
@@ -143,6 +145,48 @@ export function Profile({ onBack }: { onBack: () => void }) {
         ))}
       </div>
     </>
+  );
+}
+
+function UsernameCard({ username, onSaved }: { username: string | null; onSaved: () => void }) {
+  const [value, setValue] = useState(username ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.patch('/api/auth/username', { username: value.trim() || null });
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="plain-card">
+      <h3>Username</h3>
+      <div className="sub">Optional — shown instead of your real name everywhere it's public. Leave blank to use your name.</div>
+      <input
+        style={{ marginTop: 10 }}
+        placeholder="e.g. skincarefan22"
+        value={value}
+        onChange={(e) => { setValue(e.target.value.replace(/[^a-zA-Z0-9_]/g, '')); setSaved(false); }}
+        maxLength={20}
+      />
+      {error && <p className="field-error">{error}</p>}
+      <div className="row" style={{ marginTop: 8 }}>
+        <button className="btn-outline" disabled={busy || value.trim() === (username ?? '')} onClick={handleSave}>
+          {busy ? 'Saving…' : saved ? 'Saved ✓' : 'Save username'}
+        </button>
+      </div>
+    </div>
   );
 }
 

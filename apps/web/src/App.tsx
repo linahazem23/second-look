@@ -5,16 +5,34 @@ import { Auth } from './screens/Auth.js';
 import { KycGate, ProfileQuizGate, GuidelinesGate, HOW_TO_STEPS } from './screens/Onboarding.js';
 import { PublicProfile } from './screens/PublicProfile.js';
 import { Home } from './screens/Home.js';
-import { Want } from './screens/Want.js';
-import { Demand } from './screens/Demand.js';
-import { Explore } from './screens/Explore.js';
+import { WantHub } from './screens/WantHub.js';
 import { Chat } from './screens/Chat.js';
 import { Reviews } from './screens/Reviews.js';
+import { Community } from './screens/Community.js';
 import { Profile } from './screens/Profile.js';
 import { Icon } from './Icon.js';
 
-type Tab = 'home' | 'want' | 'demand' | 'explore' | 'chat';
-type MenuView = 'reviews' | 'profile' | 'guidelines' | null;
+type Tab = 'home' | 'want' | 'reviews' | 'community' | 'chat';
+type MenuView = 'profile' | 'guidelines' | null;
+
+/** Shown in place of Want/Community/Chat for a guest — browsing stays open, only actions require an account. */
+function GuestGate({ what, onSignup, onLogin }: { what: string; onSignup: () => void; onLogin: () => void }) {
+  return (
+    <>
+      <div className="section-head">
+        <h1>{what}</h1>
+      </div>
+      <div className="plain-card">
+        <h3>Create an account to continue</h3>
+        <div className="sub">{what} needs an identity-verified account — it's how Second Look keeps this space safe.</div>
+        <div className="row" style={{ marginTop: 10 }}>
+          <button className="btn-solid" onClick={onSignup}><span className="shine" /><span className="label">Create account</span></button>
+          <button className="btn-outline" onClick={onLogin}>Log in</button>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export function App() {
   const { user, loading, logout, refresh } = useAuth();
@@ -26,6 +44,7 @@ export function App() {
   const [pendingSupport, setPendingSupport] = useState(false);
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
   const [hasUnreadChats, setHasUnreadChats] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState<{ mode: 'login' | 'signup'; reason?: string } | null>(null);
   const consumedDeepLink = useRef(false);
 
   // Lets a "you have a new message" email link (?order=<id> or ?inquiry=<id>)
@@ -71,62 +90,73 @@ export function App() {
     );
   }
 
-  if (!user) {
+  // These gates only ever apply to a logged-in user — a guest skips straight
+  // past them into the normal (browsable, action-gated) shell below.
+  if (user) {
+    // A blocked account still gets an explicit, honest screen — not a silent logout
+    // and not the normal feed as if nothing happened. It still gets to finish any
+    // order it already had in progress (the API exempts that), just nothing new.
+    if (user.status === 'Blocked') {
+      return (
+        <div id="phone">
+          <BlockedNotice blockedUntil={user.blockedUntil} onLogout={logout} />
+        </div>
+      );
+    }
+
+    // KYC and community guidelines are gates, not steps in the signup form itself —
+    // a returning user who never finished either lands right back here, every load.
+    if (user.kycStatus === 'pending' || user.kycStatus === 'rejected') {
+      return (
+        <div id="phone">
+          <KycGate onDone={refresh} />
+        </div>
+      );
+    }
+
+    if (!user.profileQuizComplete) {
+      return (
+        <div id="phone">
+          <ProfileQuizGate onDone={refresh} />
+        </div>
+      );
+    }
+
+    if (!user.guidelinesComplete) {
+      return (
+        <div id="phone">
+          <GuidelinesGate onDone={refresh} />
+        </div>
+      );
+    }
+  }
+
+  if (authPrompt) {
     return (
       <div id="phone">
-        <Auth />
+        <Auth initialMode={authPrompt.mode} reason={authPrompt.reason} onCancel={() => setAuthPrompt(null)} />
       </div>
     );
   }
 
-  // A blocked account still gets an explicit, honest screen — not a silent logout
-  // and not the normal feed as if nothing happened. It still gets to finish any
-  // order it already had in progress (the API exempts that), just nothing new.
-  if (user.status === 'Blocked') {
-    return (
-      <div id="phone">
-        <BlockedNotice blockedUntil={user.blockedUntil} onLogout={logout} />
-      </div>
-    );
-  }
-
-  // KYC and community guidelines are gates, not steps in the signup form itself —
-  // a returning user who never finished either lands right back here, every load.
-  if (user.kycStatus === 'pending' || user.kycStatus === 'rejected') {
-    return (
-      <div id="phone">
-        <KycGate onDone={refresh} />
-      </div>
-    );
-  }
-
-  if (!user.profileQuizComplete) {
-    return (
-      <div id="phone">
-        <ProfileQuizGate onDone={refresh} />
-      </div>
-    );
-  }
-
-  if (!user.guidelinesComplete) {
-    return (
-      <div id="phone">
-        <GuidelinesGate onDone={refresh} />
-      </div>
-    );
+  function needAuth(reason?: string) {
+    setAuthPrompt({ mode: 'signup', reason });
   }
 
   function goToOrder(orderId: string) {
+    if (!user) return needAuth();
     setPendingOrderId(orderId);
     setTab('chat');
   }
 
   function goToInquiry(inquiryId: string) {
+    if (!user) return needAuth();
     setPendingInquiryId(inquiryId);
     setTab('chat');
   }
 
   function goToSupport() {
+    if (!user) return needAuth();
     setPendingSupport(true);
     setMenuView(null);
     setTab('chat');
@@ -146,25 +176,55 @@ export function App() {
           <PublicProfile userId={viewingProfileId} onBack={() => setViewingProfileId(null)} />
         ) : (
           <>
-        {menuView === 'reviews' && <Reviews onBack={() => setMenuView(null)} />}
-        {menuView === 'profile' && <Profile onBack={() => setMenuView(null)} />}
+        {menuView === 'profile' && user && <Profile onBack={() => setMenuView(null)} />}
         {menuView === 'guidelines' && <GuidelinesView onBack={() => setMenuView(null)} onContactSupport={goToSupport} />}
 
         {menuView === null && (
           <>
-            {tab === 'home' && <Home onOrderCreated={goToOrder} onMessageSeller={goToInquiry} onViewProfile={setViewingProfileId} />}
-            {tab === 'want' && <Want />}
-            {tab === 'demand' && <Demand />}
-            {tab === 'explore' && <Explore />}
-            {tab === 'chat' && (
-              <Chat
-                initialOrderId={pendingOrderId}
-                initialInquiryId={pendingInquiryId}
-                initialSupport={pendingSupport}
-                onOpenOrder={() => setPendingOrderId(null)}
-                onOpenInquiry={() => setPendingInquiryId(null)}
-                onOpenSupport={() => setPendingSupport(false)}
+            {tab === 'home' && (
+              <Home
+                onOrderCreated={goToOrder}
+                onMessageSeller={goToInquiry}
+                onViewProfile={setViewingProfileId}
+                onNeedAuth={() => needAuth()}
               />
+            )}
+            {tab === 'want' && (
+              user ? <WantHub /> : (
+                <GuestGate
+                  what="Want & Demand"
+                  onSignup={() => setAuthPrompt({ mode: 'signup' })}
+                  onLogin={() => setAuthPrompt({ mode: 'login' })}
+                />
+              )
+            )}
+            {tab === 'reviews' && <Reviews guest={!user} onNeedAuth={() => needAuth()} />}
+            {tab === 'community' && (
+              user ? <Community /> : (
+                <GuestGate
+                  what="Community"
+                  onSignup={() => setAuthPrompt({ mode: 'signup' })}
+                  onLogin={() => setAuthPrompt({ mode: 'login' })}
+                />
+              )
+            )}
+            {tab === 'chat' && (
+              user ? (
+                <Chat
+                  initialOrderId={pendingOrderId}
+                  initialInquiryId={pendingInquiryId}
+                  initialSupport={pendingSupport}
+                  onOpenOrder={() => setPendingOrderId(null)}
+                  onOpenInquiry={() => setPendingInquiryId(null)}
+                  onOpenSupport={() => setPendingSupport(false)}
+                />
+              ) : (
+                <GuestGate
+                  what="Chat"
+                  onSignup={() => setAuthPrompt({ mode: 'signup' })}
+                  onLogin={() => setAuthPrompt({ mode: 'login' })}
+                />
+              )
             )}
           </>
         )}
@@ -179,11 +239,11 @@ export function App() {
         <button className={tab === 'want' && !menuView ? 'active' : ''} onClick={() => { setTab('want'); setMenuView(null); }}>
           <Icon name="want" /><span>Want</span>
         </button>
-        <button className={tab === 'demand' && !menuView ? 'active' : ''} onClick={() => { setTab('demand'); setMenuView(null); }}>
-          <Icon name="demand" /><span>Demand</span>
+        <button className={tab === 'reviews' && !menuView ? 'active' : ''} onClick={() => { setTab('reviews'); setMenuView(null); }}>
+          <Icon name="star" /><span>Reviews</span>
         </button>
-        <button className={tab === 'explore' && !menuView ? 'active' : ''} onClick={() => { setTab('explore'); setMenuView(null); }}>
-          <Icon name="explore" /><span>Explore</span>
+        <button className={tab === 'community' && !menuView ? 'active' : ''} onClick={() => { setTab('community'); setMenuView(null); }}>
+          <Icon name="community" /><span>Community</span>
         </button>
         <button className={tab === 'chat' && !menuView ? 'active' : ''} onClick={() => { setTab('chat'); setMenuView(null); }}>
           <Icon name="chat" /><span>Chat</span>
@@ -197,10 +257,19 @@ export function App() {
             <Icon name="close" size={16} />
           </button>
           <h2>Menu</h2>
-          <button className="item" onClick={() => { setMenuView('reviews'); setMenuOpen(false); }}>Reviews</button>
-          <button className="item" onClick={() => { setMenuView('profile'); setMenuOpen(false); }}>My profile</button>
-          <button className="item" onClick={() => { setMenuView('guidelines'); setMenuOpen(false); }}>Community guidelines</button>
-          <button className="item" onClick={logout}>Log out</button>
+          {user ? (
+            <>
+              <button className="item" onClick={() => { setMenuView('profile'); setMenuOpen(false); }}>My profile</button>
+              <button className="item" onClick={() => { setMenuView('guidelines'); setMenuOpen(false); }}>Community guidelines</button>
+              <button className="item" onClick={logout}>Log out</button>
+            </>
+          ) : (
+            <>
+              <button className="item" onClick={() => { setMenuView('guidelines'); setMenuOpen(false); }}>Community guidelines</button>
+              <button className="item" onClick={() => { setMenuOpen(false); setAuthPrompt({ mode: 'signup' }); }}>Create account</button>
+              <button className="item" onClick={() => { setMenuOpen(false); setAuthPrompt({ mode: 'login' }); }}>Log in</button>
+            </>
+          )}
         </div>
       </div>
     </div>

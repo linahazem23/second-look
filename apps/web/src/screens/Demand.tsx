@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
+import { displayName } from '../identity.js';
 
 interface Comment {
   id: string;
@@ -14,7 +15,7 @@ interface DemandRequest {
   category: string;
   area: string;
   comments: Comment[];
-  requester: { fullName: string };
+  requester: { fullName: string; username?: string | null };
   boosted: boolean;
 }
 
@@ -80,7 +81,7 @@ export function Demand() {
       {requests.map((d) => (
         <div className="plain-card" key={d.id}>
           <h3>{d.itemName} {d.boosted && <span className="match-badge">Boosted</span>}</h3>
-          <div className="sub">{d.requester.fullName} in {d.area} is looking for this &middot; {d.category}</div>
+          <div className="sub">{displayName(d.requester)} in {d.area} is looking for this &middot; {d.category}</div>
           <div className="row">
             <button
               className={`btn-outline ${offered[d.id] ? 'done' : ''}`}

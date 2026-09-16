@@ -17,6 +17,7 @@ import { profilesRouter } from './routes/profiles.routes.js';
 import { growthRouter } from './routes/growth.routes.js';
 import { inquiriesRouter } from './routes/inquiries.routes.js';
 import { paymentsRouter } from './routes/payments.routes.js';
+import { communityRouter } from './routes/community.routes.js';
 
 dotenv.config();
 
@@ -53,6 +54,7 @@ app.use('/api/profiles', profilesRouter);
 app.use('/api/growth', growthRouter);
 app.use('/api/inquiries', inquiriesRouter);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/community', communityRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

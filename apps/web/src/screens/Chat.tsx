@@ -4,6 +4,7 @@ import { useAuth } from '../AuthContext.js';
 import { Icon } from '../Icon.js';
 import { ProductReviewForm, PersonReviewForm } from './ReviewForms.js';
 import { uploadFile } from '../ImageUpload.js';
+import { displayName } from '../identity.js';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   AwaitingPayment: 'Waiting for payment',
@@ -33,8 +34,8 @@ interface OrderSummary {
   deliveryMethod: string | null;
   escrowStatus: string;
   listing: { title: string; price: number; images: string[] };
-  buyer: { id: string; fullName: string };
-  seller: { id: string; fullName: string };
+  buyer: { id: string; fullName: string; username?: string | null };
+  seller: { id: string; fullName: string; username?: string | null };
   chats: { messageText: string }[];
   unread: boolean;
 }
@@ -42,8 +43,8 @@ interface OrderSummary {
 interface InquirySummary {
   id: string;
   listing: { title: string; images: string[] };
-  buyer: { id: string; fullName: string };
-  seller: { id: string; fullName: string };
+  buyer: { id: string; fullName: string; username?: string | null };
+  seller: { id: string; fullName: string; username?: string | null };
   messages: { messageText: string }[];
   unread: boolean;
 }
@@ -135,9 +136,9 @@ function ChatList({
         const other = user?.id === i.buyer.id ? i.seller : i.buyer;
         return (
           <button key={i.id} className="thread-row" onClick={() => onOpenInquiry(i.id)}>
-            <div className="avatar">{other.fullName.slice(0, 1)}</div>
+            <div className="avatar">{displayName(other).slice(0, 1)}</div>
             <div>
-              <div className="t-name">{other.fullName} &middot; {i.listing.title} {i.unread && <span className="unread-dot" />}</div>
+              <div className="t-name">{displayName(other)} &middot; {i.listing.title} {i.unread && <span className="unread-dot" />}</div>
               <div className="t-sub">{i.messages[0]?.messageText ?? 'Question about this listing'}</div>
             </div>
           </button>
@@ -147,9 +148,9 @@ function ChatList({
         const other = user?.id === o.buyer.id ? o.seller : o.buyer;
         return (
           <button key={o.id} className="thread-row" onClick={() => onOpen(o.id)}>
-            <div className="avatar">{other.fullName.slice(0, 1)}</div>
+            <div className="avatar">{displayName(other).slice(0, 1)}</div>
             <div>
-              <div className="t-name">{other.fullName} &middot; {o.listing.title} {o.unread && <span className="unread-dot" />}</div>
+              <div className="t-name">{displayName(other)} &middot; {o.listing.title} {o.unread && <span className="unread-dot" />}</div>
               <div className="t-sub">{o.chats[0]?.messageText ?? `Order started · ${o.amount} EGP`}</div>
             </div>
           </button>
@@ -162,8 +163,8 @@ function ChatList({
 interface InquiryFull {
   id: string;
   listing: { title: string; price: number };
-  buyer: { id: string; fullName: string };
-  seller: { id: string; fullName: string };
+  buyer: { id: string; fullName: string; username?: string | null };
+  seller: { id: string; fullName: string; username?: string | null };
 }
 
 function InquiryThread({ inquiryId, onBack }: { inquiryId: string; onBack: () => void }) {
@@ -242,7 +243,7 @@ function InquiryThread({ inquiryId, onBack }: { inquiryId: string; onBack: () =>
       <div className="thread-header">
         <button onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
         <div>
-          <div className="t-name">{other.fullName}</div>
+          <div className="t-name">{displayName(other)}</div>
           <div className="t-sub">{inquiry.listing.title} &middot; {inquiry.listing.price} EGP &middot; Question</div>
         </div>
       </div>
@@ -463,7 +464,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       <div className="thread-header">
         <button onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
         <div>
-          <div className="t-name">{other.fullName}</div>
+          <div className="t-name">{displayName(other)}</div>
           <div className="t-sub">
             {order.listing.title} &middot; {order.amount} EGP
             {order.deliveryMethod && <> &middot; {DELIVERY_LABELS[order.deliveryMethod]}</>}

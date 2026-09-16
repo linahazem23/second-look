@@ -61,3 +61,43 @@ export async function notifyNewMessage(params: {
     console.error('Failed to send new-message notification email', err);
   }
 }
+
+/**
+ * Fire-and-forget "someone replied to a thread you're watching" notification —
+ * the email side of the round "notify me" toggle on a community thread.
+ */
+export async function notifyThreadReply(params: {
+  threadId: string;
+  recipientEmail: string;
+  recipientName: string;
+  replierName: string;
+  threadTitle: string;
+  preview: string;
+}) {
+  if (!resend) return;
+
+  const debounceKey = `community:${params.threadId}:${params.recipientEmail}`;
+  if (!passesDebounce(debounceKey)) return;
+
+  const link = `${APP_URL}/?community=${params.threadId}`;
+  const safePreview = escapeHtml(params.preview).slice(0, 300);
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: params.recipientEmail,
+      subject: `${params.replierName} replied to "${params.threadTitle}" on Second Look`,
+      html: `
+        <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
+          <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
+          <p style="color: #37202A; font-size: 15px;">Hi ${escapeHtml(params.recipientName)}, ${escapeHtml(params.replierName)} replied to a thread you're watching — <strong>${escapeHtml(params.threadTitle)}</strong>:</p>
+          <p style="background: #F6D9E3; padding: 12px 16px; border-radius: 10px; color: #37202A; font-size: 14px;">${safePreview}</p>
+          <a href="${link}" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">View the thread</a>
+          <p style="color: #9C7684; font-size: 11.5px; margin-top: 28px;">You're receiving this because you tapped "notify me" on this thread on Second Look.</p>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('Failed to send thread-reply notification email', err);
+  }
+}

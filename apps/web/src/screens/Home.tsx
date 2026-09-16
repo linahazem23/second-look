@@ -6,6 +6,8 @@ import { MultiImageUpload } from '../ImageUpload.js';
 import { ReportListingModal } from './ReportListingModal.js';
 import { LocationAreaField } from '../LocationArea.js';
 import { Toggle } from '../Toggle.js';
+import { Explore } from './Explore.js';
+import { displayName } from '../identity.js';
 
 const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
 const CONDITIONS = [
@@ -30,10 +32,10 @@ interface Listing {
   images: string[];
   boosted: boolean;
   savedByMe: boolean;
-  seller: { id: string; fullName: string };
+  seller: { id: string; fullName: string; username?: string | null };
 }
 
-export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrderCreated?: (orderId: string) => void; onMessageSeller?: (inquiryId: string) => void; onViewProfile?: (userId: string) => void }) {
+export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAuth }: { onOrderCreated?: (orderId: string) => void; onMessageSeller?: (inquiryId: string) => void; onViewProfile?: (userId: string) => void; onNeedAuth?: () => void }) {
   const { user } = useAuth();
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
@@ -44,6 +46,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function buyNow(item: Listing) {
+    if (!user) return onNeedAuth?.();
     setBuyingId(item.id);
     setActionError(null);
     try {
@@ -57,6 +60,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   }
 
   async function messageSeller(item: Listing) {
+    if (!user) return onNeedAuth?.();
     setMessagingId(item.id);
     setActionError(null);
     try {
@@ -80,6 +84,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSellForm, setShowSellForm] = useState(false);
+  const [showExplore, setShowExplore] = useState(false);
 
   const activeFilterCount = [sortDir, conditionFilter, areaFilter, sizeFilter].filter(Boolean).length + (allowOffersOnly ? 1 : 0);
 
@@ -137,6 +142,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   }
 
   async function boostListing(id: string) {
+    if (!user) return onNeedAuth?.();
     setActionError(null);
     setBoostingId(id);
     try {
@@ -161,6 +167,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
   }
 
   async function toggleSave(item: Listing) {
+    if (!user) return onNeedAuth?.();
     setListings((prev) => prev.map((l) => (l.id === item.id ? { ...l, savedByMe: !l.savedByMe } : l)));
     try {
       if (item.savedByMe) await api.delete(`/api/listings/${item.id}/save`);
@@ -177,6 +184,18 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
     setAreaFilter('');
     setSizeFilter('');
     setAllowOffersOnly(false);
+  }
+
+  if (showExplore) {
+    return (
+      <>
+        <div className="section-head">
+          <button className="back-btn" onClick={() => setShowExplore(false)}><Icon name="arrowLeft" size={18} /></button>
+          <div><h1 style={{ fontSize: 19 }}>Browse by area</h1></div>
+        </div>
+        <Explore />
+      </>
+    );
   }
 
   return (
@@ -207,6 +226,9 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
           <Icon name="flag" size={12} /> Filter
           {activeFilterCount > 0 && <span className="count">{activeFilterCount}</span>}
         </button>
+        <button className="filter-btn" onClick={() => setShowExplore(true)}>
+          <Icon name="explore" size={12} /> Browse by area
+        </button>
       </div>
 
       {showFilters && (
@@ -228,12 +250,12 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
       )}
 
       <div className="post-btn-wrap">
-        <button className="post-toggle" onClick={() => setShowSellForm((v) => !v)}>
+        <button className="post-toggle" onClick={() => (user ? setShowSellForm((v) => !v) : onNeedAuth?.())}>
           <Icon name="plus" size={16} /> {showSellForm ? 'Cancel' : 'Sell an item'}
         </button>
       </div>
 
-      {showSellForm && <SellForm onPosted={() => { setShowSellForm(false); load(); }} />}
+      {showSellForm && user && <SellForm onPosted={() => { setShowSellForm(false); load(); }} />}
 
       {reportTarget && (
         <ReportListingModal
@@ -278,7 +300,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile }: { onOrd
                       onClick={(e) => { e.stopPropagation(); onViewProfile(item.seller.id); }}
                       style={{ background: 'none', border: 'none', padding: 0, fontSize: 10.5, color: 'var(--rose-dark)', textDecoration: 'underline' }}
                     >
-                      {item.seller.fullName}
+                      {displayName(item.seller)}
                     </button>
                   )}
                   <div className="card-actions" style={{ marginTop: 8 }}>

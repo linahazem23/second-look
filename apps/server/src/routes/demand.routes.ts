@@ -18,7 +18,7 @@ demandRouter.get('/', async (_req, res) => {
   const requests = await prisma.demandRequest.findMany({
     where: { status: 'open' },
     orderBy: [{ boosted: 'desc' }, { createdAt: 'desc' }],
-    include: { comments: true, requester: { select: { id: true, fullName: true } } }
+    include: { comments: true, requester: { select: { id: true, fullName: true, username: true } } }
   });
   return res.json({ requests, count: requests.length });
 });

@@ -52,7 +52,7 @@ chatRouter.post('/support/messages', requireAuth, async (req: AuthedRequest, res
 async function assertParticipant(orderId: string, userId: string) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true, email: true } }, seller: { select: { fullName: true, email: true } } }
+    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true, username: true, email: true } }, seller: { select: { fullName: true, username: true, email: true } } }
   });
   if (!order) return null;
   if (order.buyerId !== userId && order.sellerId !== userId) return undefined;

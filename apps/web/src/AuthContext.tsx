@@ -5,6 +5,7 @@ export interface CurrentUser {
   id: string;
   email: string;
   fullName: string;
+  username: string | null;
   area: string;
   verifiedFemale: boolean;
   kycStatus: string;
@@ -20,7 +21,7 @@ export interface CurrentUser {
 interface AuthState {
   user: CurrentUser | null;
   loading: boolean;
-  signup: (data: { email: string; password: string; fullName: string; area: string; age?: number; languagePreference?: string; referralCode?: string }) => Promise<void>;
+  signup: (data: { email: string; password: string; fullName: string; area: string; age?: number; languagePreference?: string; referralCode?: string; username?: string }) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;

@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext.js';
 import { friendlyError } from '../api.js';
+import { Icon } from '../Icon.js';
 
 type Mode = 'login' | 'signup';
 
-export function Auth() {
+export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?: Mode; reason?: string; onCancel?: () => void }) {
   const { login, signup } = useAuth();
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [area, setArea] = useState('');
   const [age, setAge] = useState('');
   const [languagePreference, setLanguagePreference] = useState('en');
@@ -38,7 +40,7 @@ export function Auth() {
     try {
       // AuthContext's signup() already refreshes the current user; App then routes
       // the newly-created (unverified, guidelines-pending) account into onboarding.
-      await signup({ email, password, fullName, area, age: age ? Number(age) : undefined, languagePreference, referralCode: referralCode || undefined });
+      await signup({ email, password, fullName, area, age: age ? Number(age) : undefined, languagePreference, referralCode: referralCode || undefined, username: username || undefined });
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -49,13 +51,18 @@ export function Auth() {
   return (
     <div id="onboarding">
       <div className="ob-body">
+        {onCancel && (
+          <button type="button" className="back-btn" style={{ marginBottom: 8 }} onClick={onCancel}>
+            <Icon name="arrowLeft" size={18} />
+          </button>
+        )}
         <p className="kicker" style={{ fontSize: 12, color: 'var(--ink-light)', letterSpacing: 0.4 }}>
           Women-only resale &middot; Egypt
         </p>
         <h1>Second Look</h1>
         <p className="lead">
-          Buy and sell skincare, makeup, and clothes with identity-verified members, moderated reviews, and demand
-          matching built in.
+          {reason ??
+            'Buy and sell skincare, makeup, and clothes with identity-verified members, moderated reviews, and demand matching built in.'}
         </p>
 
         {mode === 'login' ? (
@@ -76,6 +83,13 @@ export function Auth() {
           <form onSubmit={handleSignup}>
             <label>Full name</label>
             <input required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <label>Username (optional)</label>
+            <input
+              placeholder="Shown instead of your name — leave blank to use your name"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+              maxLength={20}
+            />
             <label>Email</label>
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             <label>Password</label>

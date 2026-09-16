@@ -59,6 +59,10 @@ model User {
   email               String        @unique
   passwordHash        String
   fullName            String
+  // Optional pseudonym — shown instead of fullName everywhere a name is public
+  // (listings, chat, reviews, community). fullName stays the real identity used
+  // for KYC and admin/moderation, which always shows fullName regardless.
+  username            String?       @unique
   area                String
   languagePreference  String        @default("en")
   verifiedFemale      Boolean       @default(false)
@@ -101,6 +105,9 @@ model User {
   inquiriesAsBuyer    Inquiry[]     @relation("InquiriesAsBuyer")
   inquiriesAsSeller   Inquiry[]     @relation("InquiriesAsSeller")
   communityProductReviews CommunityProductReview[]
+  communityThreads        CommunityThread[]
+  communityReplies        CommunityReply[]
+  communityThreadWatches  CommunityThreadWatcher[]
 }
 
 model VideoSubmission {
@@ -406,4 +413,42 @@ model AdminUser {
   role          String   @default("moderator")
   fullName      String
   createdAt     DateTime @default(now())
+}
+
+// Peer-to-peer Q&A/tips board — "ask each other for consultations" on products,
+// skincare tips, where to buy things, etc. Reply notifications reuse the same
+// email pipeline built for chat (see lib/email.ts).
+model CommunityThread {
+  id        String                   @id @default(cuid())
+  authorId  String
+  author    User                     @relation(fields: [authorId], references: [id])
+  title     String
+  body      String
+  category  String?
+  createdAt DateTime                 @default(now())
+  replies   CommunityReply[]
+  watchers  CommunityThreadWatcher[]
+}
+
+model CommunityReply {
+  id        String          @id @default(cuid())
+  threadId  String
+  thread    CommunityThread @relation(fields: [threadId], references: [id])
+  authorId  String
+  author    User            @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime        @default(now())
+}
+
+// The round "notify me" toggle — a watcher gets emailed the next time someone
+// replies to a thread, mirroring how Facebook-group "+1" comments work.
+model CommunityThreadWatcher {
+  id        String          @id @default(cuid())
+  threadId  String
+  thread    CommunityThread @relation(fields: [threadId], references: [id])
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  createdAt DateTime        @default(now())
+
+  @@unique([threadId, userId])
 }

@@ -104,8 +104,8 @@ ordersRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
     orderBy: { createdAt: 'desc' },
     include: {
       listing: { select: { title: true, images: true } },
-      buyer: { select: { id: true, fullName: true } },
-      seller: { select: { id: true, fullName: true } },
+      buyer: { select: { id: true, fullName: true, username: true } },
+      seller: { select: { id: true, fullName: true, username: true } },
       chats: { orderBy: { createdAt: 'desc' }, take: 1 }
     }
   });
@@ -127,8 +127,8 @@ ordersRouter.get('/:id', requireAuth, async (req: AuthedRequest, res) => {
     include: {
       listing: true,
       trackingLinks: true,
-      buyer: { select: { id: true, fullName: true } },
-      seller: { select: { id: true, fullName: true } }
+      buyer: { select: { id: true, fullName: true, username: true } },
+      seller: { select: { id: true, fullName: true, username: true } }
     }
   });
   if (!order) return res.status(404).json({ error: 'Order not found' });

@@ -34,8 +34,8 @@ inquiriesRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
     orderBy: { createdAt: 'desc' },
     include: {
       listing: { select: { title: true, images: true } },
-      buyer: { select: { id: true, fullName: true } },
-      seller: { select: { id: true, fullName: true } },
+      buyer: { select: { id: true, fullName: true, username: true } },
+      seller: { select: { id: true, fullName: true, username: true } },
       messages: { orderBy: { createdAt: 'desc' }, take: 1 }
     }
   });
@@ -54,7 +54,7 @@ inquiriesRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
 async function assertParticipant(inquiryId: string, userId: string) {
   const inquiry = await prisma.inquiry.findUnique({
     where: { id: inquiryId },
-    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true, email: true } }, seller: { select: { fullName: true, email: true } } }
+    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true, username: true, email: true } }, seller: { select: { fullName: true, username: true, email: true } } }
   });
   if (!inquiry) return null;
   if (inquiry.buyerId !== userId && inquiry.sellerId !== userId) return undefined;
@@ -66,8 +66,8 @@ inquiriesRouter.get('/:id', requireAuth, async (req: AuthedRequest, res) => {
     where: { id: req.params.id },
     include: {
       listing: { select: { title: true, images: true, price: true } },
-      buyer: { select: { id: true, fullName: true } },
-      seller: { select: { id: true, fullName: true } }
+      buyer: { select: { id: true, fullName: true, username: true } },
+      seller: { select: { id: true, fullName: true, username: true } }
     }
   });
   if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' });

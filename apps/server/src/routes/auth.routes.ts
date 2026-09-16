@@ -6,6 +6,8 @@ import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
 
 export const authRouter = Router();
 
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
+
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
@@ -13,7 +15,8 @@ const signupSchema = z.object({
   area: z.string().min(1),
   age: z.number().int().positive().optional(),
   languagePreference: z.string().default('en'),
-  referralCode: z.string().optional()
+  referralCode: z.string().optional(),
+  username: z.string().regex(USERNAME_PATTERN, 'Username must be 3-20 letters, numbers, or underscores.').optional()
 });
 
 authRouter.post('/signup', async (req, res) => {
@@ -22,6 +25,11 @@ authRouter.post('/signup', async (req, res) => {
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (existing) return res.status(409).json({ error: 'An account with this email already exists.' });
+
+  if (parsed.data.username) {
+    const usernameTaken = await prisma.user.findUnique({ where: { username: parsed.data.username } });
+    if (usernameTaken) return res.status(409).json({ error: 'That username is already taken.' });
+  }
 
   // Under-18 is an explicitly unresolved policy area (legal/child-safety review pending) —
   // block signup rather than silently deciding a minors pathway.
@@ -49,6 +57,7 @@ authRouter.post('/signup', async (req, res) => {
       area: parsed.data.area,
       age: parsed.data.age,
       languagePreference: parsed.data.languagePreference,
+      username: parsed.data.username,
       referralCode,
       referredByUserId
     }
@@ -57,7 +66,7 @@ authRouter.post('/signup', async (req, res) => {
   const token = signUserToken(user.id);
   return res.status(201).json({
     token,
-    user: { id: user.id, email: user.email, fullName: user.fullName, kycStatus: user.kycStatus },
+    user: { id: user.id, email: user.email, fullName: user.fullName, username: user.username, kycStatus: user.kycStatus },
     referralApplied: Boolean(referredByUserId)
   });
 });
@@ -88,6 +97,20 @@ authRouter.get('/me', requireAuth, async (req: AuthedRequest, res) => {
       isPlusActive: isPlusActive(user)
     }
   });
+});
+
+// Setting username back to null/empty reverts public display to fullName.
+authRouter.patch('/username', requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = z.object({ username: z.string().regex(USERNAME_PATTERN, 'Username must be 3-20 letters, numbers, or underscores.').nullable() }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  if (parsed.data.username) {
+    const taken = await prisma.user.findFirst({ where: { username: parsed.data.username, id: { not: req.userId } } });
+    if (taken) return res.status(409).json({ error: 'That username is already taken.' });
+  }
+
+  const user = await prisma.user.update({ where: { id: req.userId }, data: { username: parsed.data.username } });
+  return res.json({ username: user.username });
 });
 
 const profileQuizSchema = z.object({
