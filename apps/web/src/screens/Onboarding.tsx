@@ -342,12 +342,13 @@ export function ProfileQuizGate({ onDone }: { onDone: () => void }) {
 
 export const HOW_TO_STEPS = [
   'Get verified once (ID + selfie) — this unlocks buying, selling, and posting.',
-  'Browse Skincare, Makeup, or Clothes on Home, or check Explore for listings near you.',
-  'Found something? Tap Buy to pay — Second Look holds your payment, not the seller, until you confirm delivery. The seller is only paid once you confirm, so there\'s always a neutral third party if something goes wrong.',
-  'See "Negotiable" on a listing? You can offer a lower price instead of buying outright — the seller can accept, decline, or counter.',
+  'Browse Skincare, Haircare, Makeup, or Clothes on Home, or tap "Browse by area" for listings near you.',
+  'Found something? Tap Buy to open a chat with the seller first — agree on condition, price, and delivery before anything ships.',
+  'See "Negotiable" on a listing? Make an offer right in that chat — the seller can accept, decline, or counter.',
+  'Ready? Tap "Buy now" inside the chat to pay — Second Look holds your payment, not the seller, until you confirm delivery. The seller is only paid once you confirm, so there\'s always a neutral third party if something goes wrong.',
   'Selling? Tap "+ Sell an item", add photos, a price below the original, and your area.',
   'Chat with the buyer or seller to arrange meetup or delivery — it stays saved on that order.',
-  'Something feels wrong? Report it from the listing, the chat, or message Support any time.'
+  'Something feels wrong? Tap the 🆘 SOS button in that chat, report it from the listing, or message Support any time.'
 ];
 
 export function GuidelinesGate({ onDone }: { onDone: () => void }) {

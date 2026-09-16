@@ -3,7 +3,7 @@ import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
 import { displayName } from '../identity.js';
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'General'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'General'] as const;
 
 interface Author {
   id: string;

@@ -8,7 +8,7 @@ import { notifyThreadReply } from '../lib/email.js';
 
 export const communityRouter = Router();
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'General'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'General'] as const;
 
 const AUTHOR_SELECT = { id: true, fullName: true, username: true } as const;
 

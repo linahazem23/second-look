@@ -5,7 +5,7 @@ const listingSchema = z.object({
   id: z.string(),
   sellerId: z.string(),
   title: z.string().min(1),
-  category: z.enum(['Skincare', 'Makeup', 'Clothes']),
+  category: z.enum(['Skincare', 'Haircare', 'Makeup', 'Clothes']),
   price: z.number().positive(),
   originalPrice: z.number().positive(),
   status: z.enum(['active', 'removed', 'under_review', 'sold']),
