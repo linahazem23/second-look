@@ -13,18 +13,18 @@ export function buyerProtectionFee(itemPrice: number): number {
   return Math.round(itemPrice * buyerProtectionFeeRate(itemPrice) * 100) / 100;
 }
 
-// A barely-used item discounted too steeply (once the buyer protection fee is
-// added on top) stops feeling like a real commitment to buy. The floor rises
-// with how used the item is — more wear justifies a bigger discount. Also
-// enforced against a negotiated offer amount, not just the listed price.
-export const MAX_DISCOUNT_BY_CONDITION: Record<string, number> = {
+// A "used" item priced too close to its original stops reading as a genuine
+// resale — so each condition tier has a MINIMUM required discount. A seller
+// can always discount further than this (a bigger markdown is always fine);
+// this only caps how HIGH the price can be for a given condition.
+export const MIN_DISCOUNT_BY_CONDITION: Record<string, number> = {
   NeverUsed: 0.05,
   UsedOnce: 0.07,
   UsedAFewTimes: 0.15,
   RegularlyUsed: 0.18
 };
 
-export function minAllowedPrice(originalPrice: number, condition: string): number {
-  const maxDiscount = MAX_DISCOUNT_BY_CONDITION[condition] ?? 0.05;
-  return originalPrice * (1 - maxDiscount);
+export function maxAllowedPrice(originalPrice: number, condition: string): number {
+  const minDiscount = MIN_DISCOUNT_BY_CONDITION[condition] ?? 0.05;
+  return originalPrice * (1 - minDiscount);
 }

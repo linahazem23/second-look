@@ -11,6 +11,7 @@ import { Reviews } from './screens/Reviews.js';
 import { Community } from './screens/Community.js';
 import { Profile } from './screens/Profile.js';
 import { GuardianConsent } from './screens/GuardianConsent.js';
+import { ResetPassword } from './screens/ResetPassword.js';
 import { Icon } from './Icon.js';
 
 type Tab = 'home' | 'want' | 'reviews' | 'community' | 'chat';
@@ -103,6 +104,15 @@ export function App() {
     return (
       <div id="phone">
         <GuardianConsent token={guardianConsentToken} />
+      </div>
+    );
+  }
+
+  const resetPasswordToken = new URLSearchParams(window.location.search).get('resetPassword');
+  if (resetPasswordToken) {
+    return (
+      <div id="phone">
+        <ResetPassword token={resetPasswordToken} onDone={() => { window.history.replaceState(null, '', window.location.pathname); window.location.reload(); }} />
       </div>
     );
   }

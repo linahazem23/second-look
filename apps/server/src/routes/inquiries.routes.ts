@@ -5,7 +5,6 @@ import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
 import { notifyNewMessage } from '../lib/email.js';
 import { createOrderForListing } from './orders.routes.js';
-import { minAllowedPrice } from '../lib/pricing.js';
 
 export const inquiriesRouter = Router();
 
@@ -167,15 +166,8 @@ inquiriesRouter.post('/:id/offer', requireAuth, async (req: AuthedRequest, res) 
   const parsed = offerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
 
-  // An offer negotiates below the current asking price, not the pre-discount
-  // original — capped at the listing's own price so an older listing already
-  // priced under the standard floor still has a valid (if narrow) offer range.
-  const floor = Math.min(minAllowedPrice(inquiry.listing.originalPrice, inquiry.listing.condition), inquiry.listing.price - 1);
   if (parsed.data.amount >= inquiry.listing.price) {
     return res.status(422).json({ error: 'An offer should be below the listed price — otherwise just buy at the listed price.' });
-  }
-  if (parsed.data.amount < floor) {
-    return res.status(422).json({ error: `Offers on this item can't go below ${Math.ceil(floor)} EGP.` });
   }
 
   const [message] = await prisma.$transaction([

@@ -5,6 +5,7 @@ import { hashPassword, verifyPassword, signAdminToken, requireAdmin, requireRole
 import { applyStrike, applyImmediateBlock, hasActiveEscrowOrder } from '../lib/strikes.js';
 import { grantMembershipDays, MEMBERSHIP_GRANT_DAYS, VIDEO_PROMO_MAX_GRANTS } from '../lib/membership.js';
 import { notifySupportReply } from '../lib/email.js';
+import { refundPaymobTransaction } from '../lib/paymob.js';
 
 export const adminRouter = Router();
 
@@ -224,6 +225,45 @@ adminRouter.get('/orders', async (_req, res) => {
     include: { buyer: { select: { fullName: true } }, seller: { select: { fullName: true } }, listing: true, trackingLinks: true }
   });
   return res.json({ orders });
+});
+
+// A dispute (raised by either party via POST /api/orders/:id/dispute) freezes
+// the order's escrow — this is the only thing that actually moves the money
+// afterward: either it goes to the seller as normal, or it's refunded to the
+// buyer through Paymob. Both are final and require a human decision, since
+// there's no automated way to know who's telling the truth about delivery.
+adminRouter.post('/orders/:id/resolve-dispute', async (req: AuthedRequest, res) => {
+  const parsed = z.object({ outcome: z.enum(['release', 'refund']), notes: z.string().optional() }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.escrowStatus !== 'Disputed') return res.status(409).json({ error: 'This order is not currently disputed.' });
+
+  if (parsed.data.outcome === 'release') {
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { escrowStatus: 'PaymentReleased', paymentReleasedAt: new Date(), disputeResolutionNotes: parsed.data.notes }
+    });
+    return res.json({ order: updated });
+  }
+
+  if (!order.paymobTransactionId) {
+    return res.status(422).json({ error: "This order has no recorded Paymob transaction — it can't be auto-refunded. Refund the buyer manually and mark it resolved outside this tool." });
+  }
+
+  try {
+    await refundPaymobTransaction({ transactionId: order.paymobTransactionId, amountEgp: order.amount });
+  } catch (err) {
+    return res.status(502).json({ error: err instanceof Error ? err.message : 'Paymob refund failed' });
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: { escrowStatus: 'Refunded', refundedAt: new Date(), disputeResolutionNotes: parsed.data.notes }
+  });
+  await prisma.listing.updateMany({ where: { id: order.listingId, status: 'Sold' }, data: { status: 'Active' } });
+  return res.json({ order: updated });
 });
 
 // ---- Moderation queue ----

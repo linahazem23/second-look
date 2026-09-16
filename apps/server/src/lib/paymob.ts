@@ -86,6 +86,19 @@ export async function createPaymobCheckout(params: { amountEgp: number; merchant
 }
 
 /**
+ * Refunds a previously-captured transaction — full or partial — used when an
+ * admin resolves a dispute in the buyer's favor. amountEgp is whole EGP.
+ */
+export async function refundPaymobTransaction(params: { transactionId: string; amountEgp: number }): Promise<void> {
+  const authToken = await authenticate();
+  await paymobFetch('/acceptance/void_refund/refund', {
+    auth_token: authToken,
+    transaction_id: params.transactionId,
+    amount_cents: Math.round(params.amountEgp * 100)
+  });
+}
+
+/**
  * Verifies a transaction-processed webhook callback per Paymob's documented HMAC
  * scheme: a fixed, ordered concatenation of specific fields from the "obj",
  * hashed with SHA512 using the merchant's HMAC secret, hex-encoded.

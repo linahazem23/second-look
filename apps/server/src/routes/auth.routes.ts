@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
-import { notifyGuardianConsentRequest } from '../lib/email.js';
+import { notifyGuardianConsentRequest, notifyPasswordReset } from '../lib/email.js';
 import { upload, uploadedFileUrl } from '../lib/upload.js';
 
 export const authRouter = Router();
@@ -151,6 +151,45 @@ authRouter.post('/login', async (req, res) => {
 
   const token = signUserToken(user.id);
   return res.json({ token, user: { id: user.id, email: user.email, fullName: user.fullName, status: user.status } });
+});
+
+const PASSWORD_RESET_VALID_MS = 60 * 60 * 1000;
+
+// Always responds the same way whether or not the email exists — an attacker
+// probing emails learns nothing from timing or response shape.
+authRouter.post('/forgot-password', async (req, res) => {
+  const parsed = z.object({ email: z.string().email() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+  if (user) {
+    const token = crypto.randomBytes(24).toString('hex');
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordResetToken: token, passwordResetExpiresAt: new Date(Date.now() + PASSWORD_RESET_VALID_MS) }
+    });
+    notifyPasswordReset({ recipientEmail: user.email, recipientName: user.username ?? user.fullName, token }).catch(() => {});
+  }
+
+  return res.json({ ok: true, message: "If that email has an account, we've sent a reset link." });
+});
+
+authRouter.post('/reset-password', async (req, res) => {
+  const parsed = z.object({ token: z.string().min(1), password: z.string().min(8) }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const user = await prisma.user.findUnique({ where: { passwordResetToken: parsed.data.token } });
+  if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+    return res.status(400).json({ error: 'This reset link is invalid or has expired — request a new one.' });
+  }
+
+  const passwordHash = await hashPassword(parsed.data.password);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash, passwordResetToken: null, passwordResetExpiresAt: null }
+  });
+
+  return res.json({ ok: true });
 });
 
 authRouter.get('/me', requireAuth, async (req: AuthedRequest, res) => {

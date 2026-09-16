@@ -5,7 +5,7 @@ import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified, requireCanSell } from '../lib/access.js';
 import { isPlusActive } from '../lib/membership.js';
 import { createPaymobCheckout } from '../lib/paymob.js';
-import { MAX_DISCOUNT_BY_CONDITION, minAllowedPrice } from '../lib/pricing.js';
+import { maxAllowedPrice } from '../lib/pricing.js';
 
 export const listingsRouter = Router();
 
@@ -29,8 +29,8 @@ const listingSchema = z
     message: 'Your price must be strictly lower than the original price.',
     path: ['price']
   })
-  .refine((data) => data.price >= minAllowedPrice(data.originalPrice, data.condition), (data) => ({
-    message: `For "${data.condition === 'NeverUsed' ? 'Never used' : data.condition}" items, the price can't be discounted more than ${MAX_DISCOUNT_BY_CONDITION[data.condition] * 100}% off the original — that's ${Math.ceil(minAllowedPrice(data.originalPrice, data.condition))} EGP minimum.`,
+  .refine((data) => data.price <= maxAllowedPrice(data.originalPrice, data.condition), (data) => ({
+    message: `For a "${data.condition === 'NeverUsed' ? 'Never used' : data.condition}" item, your price needs to be at most ${Math.floor(maxAllowedPrice(data.originalPrice, data.condition))} EGP — you're welcome to price it lower.`,
     path: ['price']
   }))
   .refine((data) => data.category !== 'Clothes' || Boolean(data.size), {
@@ -141,13 +141,22 @@ listingsRouter.post('/', requireAuth, requireVerified, requireCanSell, async (re
 
 const listingUpdateSchema = z.object({
   title: z.string().min(1).optional(),
+  category: z.enum(CATEGORIES).optional(),
   price: z.number().positive().optional(),
   originalPrice: z.number().positive().optional(),
+  reasonForSelling: z.string().min(1).optional(),
+  condition: z.enum(CONDITIONS).optional(),
+  size: z.string().optional(),
+  area: z.string().min(1).optional(),
   images: z.array(z.string().min(1)).min(1).optional(),
   allowOffers: z.boolean().optional(),
   status: z.enum(['Active', 'Removed', 'Sold']).optional()
 });
 
+// A listing stays fully editable to its seller after posting (title, photos,
+// description, condition, size, area, price) — only price/condition changes
+// are re-checked against the discount-ceiling rule, since those are the only
+// fields that rule depends on.
 listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
   const listing = await prisma.listing.findUnique({ where: { id: req.params.id } });
   if (!listing) return res.status(404).json({ error: 'Listing not found' });
@@ -158,14 +167,18 @@ listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
 
   const nextPrice = parsed.data.price ?? listing.price;
   const nextOriginal = parsed.data.originalPrice ?? listing.originalPrice;
+  const nextCondition = (parsed.data.condition ?? listing.condition) as (typeof CONDITIONS)[number];
   if (nextPrice >= nextOriginal) {
     return res.status(422).json({ error: 'Your price must be strictly lower than the original price.' });
   }
-  const floor = minAllowedPrice(nextOriginal, listing.condition as (typeof CONDITIONS)[number]);
-  if (nextPrice < floor) {
+  const ceiling = maxAllowedPrice(nextOriginal, nextCondition);
+  if (nextPrice > ceiling) {
     return res.status(422).json({
-      error: `For "${listing.condition}" items, the price can't be discounted more than ${MAX_DISCOUNT_BY_CONDITION[listing.condition as (typeof CONDITIONS)[number]] * 100}% off the original — that's ${Math.ceil(floor)} EGP minimum.`
+      error: `For a "${nextCondition === 'NeverUsed' ? 'Never used' : nextCondition}" item, your price needs to be at most ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`
     });
+  }
+  if (parsed.data.category === 'Clothes' && !(parsed.data.size ?? listing.size)) {
+    return res.status(422).json({ error: 'Size is required for Clothes listings.' });
   }
 
   const updated = await prisma.listing.update({ where: { id: listing.id }, data: parsed.data });

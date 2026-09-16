@@ -137,6 +137,64 @@ export async function notifyGuardianConsentRequest(params: {
 }
 
 /**
+ * Sent the moment a buyer completes a Buy — the seller's only signal that an
+ * item sold before they happen to open the app. Not debounced: each purchase
+ * is its own one-time event, not a repeating conversation.
+ */
+export async function notifyOrderPlaced(params: { sellerEmail: string; sellerName: string; itemTitle: string; amount: number; orderId: string }) {
+  if (!resend) return;
+
+  const link = `${APP_URL}/?order=${params.orderId}`;
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: params.sellerEmail,
+      subject: `Your "${params.itemTitle}" just sold on Second Look`,
+      html: `
+        <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
+          <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
+          <p style="color: #37202A; font-size: 15px;">Hi ${escapeHtml(params.sellerName)}, great news — <strong>${escapeHtml(params.itemTitle)}</strong> just sold for ${params.amount} EGP.</p>
+          <p style="color: #37202A; font-size: 15px;">The buyer's payment is held safely with Second Look. Open the order to agree on a delivery method and chat with the buyer.</p>
+          <a href="${link}" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">View the order</a>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('Failed to send order-placed notification email', err);
+  }
+}
+
+/**
+ * Sent on a forgot-password request. Always a real transactional send when the
+ * account exists — the route itself decides whether to call this, so a bad
+ * email address never learns anything from timing or response shape.
+ */
+export async function notifyPasswordReset(params: { recipientEmail: string; recipientName: string; token: string }) {
+  if (!resend) return;
+
+  const link = `${APP_URL}/?resetPassword=${params.token}`;
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: params.recipientEmail,
+      subject: 'Reset your Second Look password',
+      html: `
+        <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
+          <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
+          <p style="color: #37202A; font-size: 15px;">Hi ${escapeHtml(params.recipientName)}, we got a request to reset your password. This link works for 1 hour.</p>
+          <a href="${link}" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">Reset password</a>
+          <p style="color: #9C7684; font-size: 11.5px; margin-top: 28px;">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('Failed to send password reset email', err);
+  }
+}
+
+/**
  * Sent when a real admin replies to a user's customer-support message — not
  * the canned quick-reply bot, which the user already sees instantly in-app.
  */

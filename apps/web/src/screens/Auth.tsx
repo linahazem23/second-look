@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext.js';
-import { friendlyError } from '../api.js';
+import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
 
-type Mode = 'login' | 'signup';
+type Mode = 'login' | 'signup' | 'forgot';
 
 export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?: Mode; reason?: string; onCancel?: () => void }) {
   const { login, signup } = useAuth();
@@ -23,6 +23,22 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
   const [guardianPhone, setGuardianPhone] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
   const isMinor = age !== '' && Number(age) < 18;
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await api.post('/api/auth/forgot-password', { email: forgotEmail });
+      setForgotSent(true);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -87,6 +103,14 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             <label>Password</label>
             <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button
+              type="button"
+              className="switch-link"
+              style={{ marginTop: 6 }}
+              onClick={() => { setMode('forgot'); setError(null); setForgotEmail(email); setForgotSent(false); }}
+            >
+              Forgot password?
+            </button>
             {error && <p className="ob-err">{error}</p>}
             <div className="ob-footer" style={{ padding: '16px 0 0' }}>
               <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Log in'}</button>
@@ -95,6 +119,27 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
               </button>
             </div>
           </form>
+        ) : mode === 'forgot' ? (
+          forgotSent ? (
+            <div>
+              <p className="lead">If that email has an account, we've sent a link to reset the password. Check your inbox.</p>
+              <div className="ob-footer" style={{ padding: '16px 0 0' }}>
+                <button type="button" onClick={() => { setMode('login'); setError(null); }}>Back to login</button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleForgotPassword}>
+              <label>Email</label>
+              <input type="email" required value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} />
+              {error && <p className="ob-err">{error}</p>}
+              <div className="ob-footer" style={{ padding: '16px 0 0' }}>
+                <button type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
+                <button type="button" className="switch-link" onClick={() => { setMode('login'); setError(null); }}>
+                  Back to login
+                </button>
+              </div>
+            </form>
+          )
         ) : (
           <form onSubmit={handleSignup}>
             <label>Full name</label>

@@ -40,6 +40,7 @@ enum OrderEscrowStatus {
   PaymentFailed
   PaymentReleased
   Disputed
+  Refunded
 }
 
 enum DeliveryMethod {
@@ -82,6 +83,10 @@ model User {
   guardianIdDocumentUrl   String?
   guardianConsentToken    String?   @unique
   guardianRejectionReason String?
+  // Forgot-password: single-use, time-boxed token emailed on request; cleared
+  // the moment it's redeemed or replaced by a newer request.
+  passwordResetToken      String?   @unique
+  passwordResetExpiresAt  DateTime?
   status              UserStatus    @default(Good)
   buyOnlyUntil        DateTime?
   blockedUntil        DateTime?
@@ -225,9 +230,14 @@ model Order {
   deliveryMethod    DeliveryMethod?
   escrowStatus      OrderEscrowStatus   @default(AwaitingPayment)
   paymobOrderId     String?
+  // The actual Paymob transaction id from the webhook (distinct from paymobOrderId,
+  // Paymob's *order* id) — needed to issue a refund against this specific charge.
+  paymobTransactionId String?
   deliveryConfirmed Boolean            @default(false)
   deliveryConfirmedAt DateTime?
   paymentReleasedAt DateTime?
+  refundedAt        DateTime?
+  disputeResolutionNotes String?
   reviewUnlockAt    DateTime?
   buyerLastReadAt   DateTime?
   sellerLastReadAt  DateTime?

@@ -5,6 +5,7 @@ import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
 import { createPaymobCheckout } from '../lib/paymob.js';
 import { buyerProtectionFee as calcBuyerProtectionFee } from '../lib/pricing.js';
+import { notifyOrderPlaced } from '../lib/email.js';
 
 export const ordersRouter = Router();
 
@@ -23,15 +24,23 @@ const createOrderSchema = z.object({
  * comes off the active feed immediately either way.
  */
 export async function createOrderForListing(listingId: string, buyerId: string, priceOverride?: number) {
-  const listing = await prisma.listing.findUnique({ where: { id: listingId } });
+  const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { seller: true } });
   if (!listing || listing.status !== 'Active') throw new Error('Listing is not available');
   if (listing.sellerId === buyerId) throw new Error('You cannot buy your own listing');
 
   const itemPrice = priceOverride ?? listing.price;
   const buyerProtectionFee = calcBuyerProtectionFee(itemPrice);
 
-  const [order] = await prisma.$transaction([
-    prisma.order.create({
+  // Two buyers tapping Buy at the same instant both pass the check above — what
+  // actually decides the winner is this conditional UPDATE. Postgres locks the
+  // row for the first transaction to reach it; by the time the second one runs
+  // its own updateMany, status is already 'Sold', so it matches zero rows and
+  // the whole transaction (including the order it hasn't created yet) aborts.
+  const order = await prisma.$transaction(async (tx) => {
+    const claim = await tx.listing.updateMany({ where: { id: listingId, status: 'Active' }, data: { status: 'Sold' } });
+    if (claim.count === 0) throw new Error('This listing was just bought by someone else.');
+
+    return tx.order.create({
       data: {
         buyerId,
         sellerId: listing.sellerId,
@@ -39,9 +48,18 @@ export async function createOrderForListing(listingId: string, buyerId: string, 
         amount: itemPrice + buyerProtectionFee,
         buyerProtectionFee
       }
-    }),
-    prisma.listing.update({ where: { id: listing.id }, data: { status: 'Sold' } })
-  ]);
+    });
+  });
+
+  // Fire-and-forget — the seller's only signal that an item sold before they
+  // open the app themselves. Never blocks or fails the purchase.
+  notifyOrderPlaced({
+    sellerEmail: listing.seller.email,
+    sellerName: listing.seller.username ?? listing.seller.fullName,
+    itemTitle: listing.title,
+    amount: itemPrice,
+    orderId: order.id
+  }).catch(() => {});
 
   return order;
 }

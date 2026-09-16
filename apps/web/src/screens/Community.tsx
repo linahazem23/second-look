@@ -102,7 +102,7 @@ export function Community() {
               aria-label={t.iAmWatching ? 'Stop notifying me' : 'Notify me about replies'}
               onClick={() => toggleWatch(t.id)}
             >
-              <Icon name="bell" size={12} />
+              +1
             </button>
             <span className="sub" style={{ alignSelf: 'center' }}>{t.watcherCount} watching</span>
           </div>
@@ -218,7 +218,7 @@ function ThreadDetailView({ threadId, onBack }: { threadId: string; onBack: () =
             aria-label={thread.iAmWatching ? 'Stop notifying me' : 'Notify me about replies'}
             onClick={toggleWatch}
           >
-            <Icon name="bell" size={12} />
+            +1
           </button>
           <span className="sub" style={{ alignSelf: 'center' }}>{thread.watcherCount} watching &middot; tap to get emailed on new replies</span>
         </div>

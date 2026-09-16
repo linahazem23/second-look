@@ -43,7 +43,7 @@ export function Overview() {
             </div>
             <div className="stat-card">
               <div className="num">{data.revenue.buyerProtectionFees.toFixed(2)} EGP</div>
-              <div className="label">Buyer protection fees (5%)</div>
+              <div className="label">Buyer protection fees (3-5%)</div>
             </div>
             <div className="stat-card">
               <div className="num">{data.revenue.boosts.toFixed(2)} EGP</div>

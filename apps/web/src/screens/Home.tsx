@@ -8,7 +8,7 @@ import { LocationAreaField } from '../LocationArea.js';
 import { Toggle } from '../Toggle.js';
 import { Explore } from './Explore.js';
 import { displayName } from '../identity.js';
-import { MAX_DISCOUNT_BY_CONDITION, minAllowedPrice } from '../pricing.js';
+import { maxAllowedPrice } from '../pricing.js';
 
 const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
 const CONDITIONS = [
@@ -30,6 +30,7 @@ interface Listing {
   allowOffers: boolean;
   size?: string | null;
   area: string;
+  reasonForSelling: string;
   images: string[];
   boosted: boolean;
   savedByMe: boolean;
@@ -40,6 +41,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   const { user } = useAuth();
   const [reportTarget, setReportTarget] = useState<Listing | null>(null);
   const [negotiateTarget, setNegotiateTarget] = useState<Listing | null>(null);
+  const [viewingItem, setViewingItem] = useState<Listing | null>(null);
   const [messagingId, setMessagingId] = useState<string | null>(null);
   const [buyingId, setBuyingId] = useState<string | null>(null);
   const [boostingId, setBoostingId] = useState<string | null>(null);
@@ -297,6 +299,23 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
         />
       )}
 
+      {viewingItem && (
+        <ListingDetailModal
+          item={viewingItem}
+          isOwner={viewingItem.seller.id === user?.id}
+          buying={buyingId === viewingItem.id}
+          messaging={messagingId === viewingItem.id}
+          boosting={boostingId === viewingItem.id}
+          onClose={() => setViewingItem(null)}
+          onBuy={() => tapBuy(viewingItem)}
+          onMessage={() => messageSeller(viewingItem)}
+          onToggleSave={() => toggleSave(viewingItem)}
+          onReport={() => { setViewingItem(null); setReportTarget(viewingItem); }}
+          onBoost={() => boostListing(viewingItem.id)}
+          onViewProfile={onViewProfile ? () => { setViewingItem(null); onViewProfile(viewingItem.seller.id); } : undefined}
+        />
+      )}
+
       {actionError && (
         <p className="field-error" style={{ margin: '0 18px 10px' }}>
           {actionError} <button type="button" onClick={() => setActionError(null)} style={{ background: 'none', border: 'none', color: 'inherit', textDecoration: 'underline', padding: 0 }}>Dismiss</button>
@@ -311,7 +330,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
           <div className="result-count">{listings.length} result{listings.length === 1 ? '' : 's'}</div>
           <div className="grid">
             {listings.map((item) => (
-              <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`}>
+              <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`} onClick={() => setViewingItem(item)} style={{ cursor: 'pointer' }}>
                 <div className="thumb">
                   {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={24} />}
                 </div>
@@ -321,7 +340,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                     <span className="price">{item.price} EGP</span>
                     <span className="original-price">{item.originalPrice} EGP</span>
                   </div>
-                  <span className="discount-badge">{item.percentOff}% below original</span>
+                  <span className="discount-badge">Save {Math.round(item.originalPrice - item.price)} EGP</span>
                   {item.allowOffers && <span className="match-badge" style={{ marginLeft: 6 }}>Negotiable</span>}
                   {item.boosted && <span className="match-badge" style={{ marginLeft: 6 }}>Boosted</span>}
                   <div className="meta">
@@ -335,7 +354,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                       {displayName(item.seller)}
                     </button>
                   )}
-                  <div className="card-actions" style={{ marginTop: 8 }}>
+                  <div className="card-actions" style={{ marginTop: 8 }} onClick={(e) => e.stopPropagation()}>
                     {item.seller.id !== user?.id ? (
                       <button className="btn-outline" disabled={buyingId === item.id} onClick={() => tapBuy(item)}>
                         {buyingId === item.id ? 'Starting…' : 'Buy'}
@@ -461,10 +480,7 @@ function NegotiateModal({ item, onBuyNow, onSendOffer, onClose }: {
   onClose: () => void;
 }) {
   const [amount, setAmount] = useState('');
-  // An offer negotiates below the current asking price, not the pre-discount
-  // original — capped at the listing's own price so an older listing already
-  // priced under the standard floor still has a valid (if narrow) range.
-  const floor = Math.min(minAllowedPrice(item.originalPrice, item.condition), item.price - 1);
+  const floor = 1;
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(90,46,61,0.32)', zIndex: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
@@ -497,6 +513,142 @@ function NegotiateModal({ item, onBuyNow, onSendOffer, onClose }: {
   );
 }
 
+function ListingDetailModal({ item, isOwner, buying, messaging, boosting, onClose, onBuy, onMessage, onToggleSave, onReport, onBoost, onViewProfile }: {
+  item: Listing;
+  isOwner: boolean;
+  buying: boolean;
+  messaging: boolean;
+  boosting: boolean;
+  onClose: () => void;
+  onBuy: () => void;
+  onMessage: () => void;
+  onToggleSave: () => void;
+  onReport: () => void;
+  onBoost: () => void;
+  onViewProfile?: () => void;
+}) {
+  const [slide, setSlide] = useState<'photos' | 'details'>('photos');
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const images = item.images.length > 0 ? item.images : [null];
+
+  return (
+    <div className="listing-detail-backdrop" onClick={onClose}>
+      <div className="listing-detail" onClick={(e) => e.stopPropagation()}>
+        <div className="listing-detail-head">
+          <button className="back-btn" onClick={onClose}><Icon name="close" size={18} /></button>
+          <div className="slide-tabs">
+            <button className={slide === 'photos' ? 'active' : ''} onClick={() => setSlide('photos')}>Photos</button>
+            <button className={slide === 'details' ? 'active' : ''} onClick={() => setSlide('details')}>Details</button>
+          </div>
+        </div>
+
+        {slide === 'photos' ? (
+          <div className="listing-detail-photos">
+            <div className="listing-detail-photo-frame">
+              {images[photoIndex] ? (
+                <img src={images[photoIndex]!} alt={item.title} />
+              ) : (
+                <Icon name={categoryIcon(item.category)} size={40} />
+              )}
+              {images.length > 1 && (
+                <>
+                  <button
+                    className="photo-nav prev"
+                    aria-label="Previous photo"
+                    onClick={() => setPhotoIndex((i) => (i - 1 + images.length) % images.length)}
+                  >
+                    <Icon name="arrowLeft" size={16} />
+                  </button>
+                  <button
+                    className="photo-nav next"
+                    aria-label="Next photo"
+                    onClick={() => setPhotoIndex((i) => (i + 1) % images.length)}
+                  >
+                    <Icon name="arrowLeft" size={16} />
+                  </button>
+                </>
+              )}
+            </div>
+            {images.length > 1 && (
+              <div className="photo-dots">
+                {images.map((_, i) => (
+                  <span key={i} className={i === photoIndex ? 'dot active' : 'dot'} onClick={() => setPhotoIndex(i)} />
+                ))}
+              </div>
+            )}
+            <div className="listing-detail-price-row">
+              <div>
+                <div className="name" style={{ fontSize: 17 }}>{item.title}</div>
+                <div className="price-row" style={{ marginTop: 4 }}>
+                  <span className="price" style={{ fontSize: 18 }}>{item.price} EGP</span>
+                  <span className="original-price">{item.originalPrice} EGP</span>
+                </div>
+                <span className="discount-badge">Save {Math.round(item.originalPrice - item.price)} EGP</span>
+              </div>
+              <button type="button" className="switch-link" onClick={() => setSlide('details')}>See details →</button>
+            </div>
+          </div>
+        ) : (
+          <div className="listing-detail-info">
+            <h1 style={{ fontSize: 18, fontFamily: 'Fraunces, serif' }}>{item.title}</h1>
+            <div className="row" style={{ marginTop: 2 }}>
+              {item.allowOffers && <span className="match-badge">Negotiable</span>}
+              {item.boosted && <span className="match-badge" style={{ marginLeft: 6 }}>Boosted</span>}
+            </div>
+            <div className="meta" style={{ marginTop: 8 }}>
+              {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition}
+              {item.size ? ` · Size ${item.size}` : ''} &middot; {item.area}
+            </div>
+            {onViewProfile && (
+              <button
+                onClick={onViewProfile}
+                style={{ background: 'none', border: 'none', padding: 0, marginTop: 6, fontSize: 12, color: 'var(--rose-dark)', textDecoration: 'underline' }}
+              >
+                {displayName(item.seller)}
+              </button>
+            )}
+            {item.reasonForSelling && (
+              <p style={{ fontSize: 13.5, marginTop: 12, lineHeight: 1.5 }}>{item.reasonForSelling}</p>
+            )}
+
+            <div className="card-actions" style={{ marginTop: 16 }}>
+              {!isOwner ? (
+                <button className="btn-outline" disabled={buying} onClick={onBuy}>
+                  {buying ? 'Starting…' : `Buy — ${item.price} EGP`}
+                </button>
+              ) : (
+                !item.boosted && (
+                  <button className="btn-outline" disabled={boosting} onClick={onBoost}>
+                    {boosting ? 'Waiting for payment…' : 'Boost (25 EGP)'}
+                  </button>
+                )
+              )}
+              {!isOwner && (
+                <button className="card-icon-btn" aria-label="Message seller" disabled={messaging} onClick={onMessage}>
+                  <Icon name="chat" size={13} />
+                </button>
+              )}
+              <button
+                className="card-icon-btn"
+                aria-label={item.savedByMe ? 'Unsave' : 'Save'}
+                style={{ color: item.savedByMe ? 'var(--rose)' : 'var(--ink-light)' }}
+                onClick={onToggleSave}
+              >
+                <Icon name="want" size={13} />
+              </button>
+              {!isOwner && (
+                <button className="card-icon-btn" aria-label="Report this listing" onClick={onReport}>
+                  <Icon name="flag" size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SellForm({ onPosted }: { onPosted: () => void }) {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>('Skincare');
@@ -513,10 +665,9 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
 
   const original = Number(originalPrice);
   const yours = Number(price);
-  const floor = original > 0 ? minAllowedPrice(original, condition) : 0;
-  const validPrice = originalPrice && price ? yours < original && yours >= floor : true;
-  const percentOff = original > 0 && yours > 0 && yours < original ? Math.round(((original - yours) / original) * 100) : null;
-  const maxDiscountPercent = Math.round(MAX_DISCOUNT_BY_CONDITION[condition] * 100);
+  const ceiling = original > 0 ? maxAllowedPrice(original, condition) : Infinity;
+  const validPrice = originalPrice && price ? yours < original && yours <= ceiling : true;
+  const savings = original > 0 && yours > 0 && yours < original ? Math.round(original - yours) : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -524,7 +675,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
 
     if (photoUrls.length === 0) return setError('At least one photo is required.');
     if (yours >= original) return setError('Your price must be strictly lower than the original price.');
-    if (yours < floor) return setError(`For this condition, the price can't be discounted more than ${maxDiscountPercent}% off the original — that's ${Math.ceil(floor)} EGP minimum.`);
+    if (yours > ceiling) return setError(`For this condition, your price can't be more than ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`);
     if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
     if (!area) return setError('We need your area to list this item — allow location access or pick one.');
 
@@ -580,16 +731,16 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
 
       <label>Your price (EGP)</label>
       <input required type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} />
-      {original > 0 && (
+      {original > 0 && Number.isFinite(ceiling) && (
         <p className="discount-hint">
-          For this condition, price can't go below {Math.ceil(floor)} EGP (max {maxDiscountPercent}% off).
+          For this condition, your price can't be more than {Math.floor(ceiling)} EGP.
         </p>
       )}
       {!validPrice && yours >= original && <p className="field-error">Your price must be strictly lower than the original price.</p>}
-      {!validPrice && yours > 0 && yours < floor && (
-        <p className="field-error">That's discounted more than this condition allows — {Math.ceil(floor)} EGP minimum.</p>
+      {!validPrice && yours > 0 && yours > ceiling && (
+        <p className="field-error">That's too close to the original price for this condition — {Math.floor(ceiling)} EGP maximum.</p>
       )}
-      {validPrice && percentOff !== null && <p className="discount-hint">{percentOff}% below original price</p>}
+      {validPrice && savings !== null && <p className="discount-hint">You'll save the buyer {savings} EGP</p>}
 
       <label>Reason for selling</label>
       <textarea required rows={2} value={reasonForSelling} onChange={(e) => setReasonForSelling(e.target.value)} />

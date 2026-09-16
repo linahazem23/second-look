@@ -47,7 +47,9 @@ paymentsRouter.post('/paymob/webhook', async (req, res) => {
   if (order.escrowStatus !== 'AwaitingPayment') return res.json({ ok: true });
 
   if (obj.success === true) {
-    await prisma.order.update({ where: { id: order.id }, data: { escrowStatus: 'InEscrow' } });
+    // obj.id is Paymob's transaction id (distinct from paymobOrderId, its order
+    // id) — kept so a later dispute refund can be issued against this exact charge.
+    await prisma.order.update({ where: { id: order.id }, data: { escrowStatus: 'InEscrow', paymobTransactionId: String(obj.id) } });
   } else {
     await prisma.$transaction([
       prisma.order.update({ where: { id: order.id }, data: { escrowStatus: 'PaymentFailed' } }),

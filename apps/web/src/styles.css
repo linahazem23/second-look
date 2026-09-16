@@ -112,10 +112,28 @@ main.content { flex: 1; overflow-y: auto; padding-bottom: 8px; }
 .listing-card .original-price { font-size: 10.5px; color: var(--ink-faint); text-decoration: line-through; }
 .listing-card .meta { font-size: 10.5px; color: var(--ink-light); margin-top: 5px; line-height: 1.5; }
 .match-badge, .discount-badge { display: inline-block; margin-top: 6px; font-size: 10px; color: var(--olive); background: #EFEFDE; padding: 2px 8px; border-radius: 10px; }
+.listing-detail-backdrop { position: fixed; inset: 0; background: rgba(90, 46, 61, 0.5); z-index: 45; display: flex; align-items: center; justify-content: center; }
+.listing-detail { background: var(--card); width: 100%; max-width: 430px; height: 100%; max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; }
+.listing-detail-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 0.5px solid var(--line); position: sticky; top: 0; background: var(--card); z-index: 1; }
+.slide-tabs { display: flex; gap: 6px; }
+.slide-tabs button { padding: 6px 14px; border-radius: 14px; border: 0.5px solid var(--line); background: var(--card-alt); color: var(--ink-light); font-size: 12px; font-weight: 500; }
+.slide-tabs button.active { background: var(--rose); color: #fff; border-color: var(--rose); }
+.listing-detail-photos { flex: 1; display: flex; flex-direction: column; }
+.listing-detail-photo-frame { position: relative; width: 100%; aspect-ratio: 1 / 1; background: var(--card-alt); display: flex; align-items: center; justify-content: center; color: var(--rose-dark); }
+.listing-detail-photo-frame img { width: 100%; height: 100%; object-fit: contain; }
+.photo-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.85); border: 0.5px solid var(--line); color: var(--ink); display: flex; align-items: center; justify-content: center; }
+.photo-nav.prev { left: 10px; }
+.photo-nav.next { right: 10px; }
+.photo-nav.next .icon { transform: rotate(180deg); }
+.photo-dots { display: flex; justify-content: center; gap: 6px; padding: 10px 0; }
+.photo-dots .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--line); cursor: pointer; }
+.photo-dots .dot.active { background: var(--rose); }
+.listing-detail-price-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 4px 18px 20px; }
+.listing-detail-info { padding: 16px 18px 24px; }
 .card-actions { display: flex; align-items: center; gap: 6px; }
 .card-actions .btn-outline { flex: 1; }
 .card-icon-btn { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--card-alt); border: 0.5px solid var(--line); color: var(--ink-light); display: flex; align-items: center; justify-content: center; }
-.notify-btn { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--card-alt); border: 0.5px solid var(--line); color: var(--ink-light); display: flex; align-items: center; justify-content: center; }
+.notify-btn { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; background: var(--card-alt); border: 0.5px solid var(--line); color: var(--ink-light); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 .notify-btn.active { background: var(--rose); border-color: var(--rose); color: var(--white); }
 .empty-state { margin: 24px 18px; text-align: center; color: var(--ink-light); font-size: 13px; }
 
@@ -254,7 +272,8 @@ textarea.comment-box { width: 100%; margin-top: 10px; border: 0.5px solid var(--
 .ob-footer { padding: 16px 26px 26px; }
 .ob-footer button { width: 100%; position: relative; overflow: hidden; background: var(--rose); color: var(--white); border: none; padding: 13px; border-radius: 22px; font-size: 14px; font-weight: 500; }
 .ob-footer button:disabled { opacity: 0.5; }
-.ob-footer .switch-link { background: none; color: var(--ink-light); font-size: 12.5px; margin-top: 12px; text-decoration: underline; padding: 0; }
+.switch-link { background: none; border: none; color: var(--ink-light); font-size: 12.5px; margin-top: 12px; text-decoration: underline; padding: 0; }
+.ob-footer .switch-link { width: auto; background: none; color: var(--ink-light); font-weight: normal; border-radius: 0; }
 .ob-err { font-size: 11.5px; color: var(--error); margin-top: 8px; }
 .ob-icon-circle { width: 46px; height: 46px; border-radius: 50%; background: var(--rose-soft); display: flex; align-items: center; justify-content: center; color: var(--rose-dark); margin-bottom: 16px; }
 .ob-options { display: flex; flex-direction: column; gap: 9px; margin-top: 10px; }

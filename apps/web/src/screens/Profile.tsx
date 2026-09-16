@@ -5,7 +5,17 @@ import { Icon, categoryIcon } from '../Icon.js';
 import { MultiImageUpload } from '../ImageUpload.js';
 import { Toggle } from '../Toggle.js';
 import { GrowthPanel } from './GrowthPanel.js';
-import { minAllowedPrice } from '../pricing.js';
+import { LocationAreaField } from '../LocationArea.js';
+import { maxAllowedPrice } from '../pricing.js';
+
+const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
+const CONDITIONS = [
+  { value: 'NeverUsed', label: 'Never used' },
+  { value: 'UsedOnce', label: 'Used once' },
+  { value: 'UsedAFewTimes', label: 'Used a few times' },
+  { value: 'RegularlyUsed', label: 'Regularly used' }
+];
+const CLOTHES_SIZES = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
 
 interface MyListing {
   id: string;
@@ -17,6 +27,9 @@ interface MyListing {
   allowOffers: boolean;
   status: string;
   images: string[];
+  size?: string | null;
+  area: string;
+  reasonForSelling: string;
 }
 
 interface SavedListing {
@@ -203,6 +216,12 @@ async function updateStatus(id: string, status: string, reload: () => void, setE
 }
 
 function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; onDone: () => void; onCancel: () => void }) {
+  const [title, setTitle] = useState(listing.title);
+  const [category, setCategory] = useState(listing.category);
+  const [condition, setCondition] = useState(listing.condition);
+  const [size, setSize] = useState(listing.size ?? '');
+  const [area, setArea] = useState(listing.area);
+  const [reasonForSelling, setReasonForSelling] = useState(listing.reasonForSelling ?? '');
   const [price, setPrice] = useState(String(listing.price));
   const [originalPrice, setOriginalPrice] = useState(String(listing.originalPrice));
   const [allowOffers, setAllowOffers] = useState(listing.allowOffers);
@@ -212,20 +231,28 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
 
   const original = Number(originalPrice);
   const yours = Number(price);
-  const floor = original > 0 ? minAllowedPrice(original, listing.condition) : 0;
-  const validPrice = yours < original && yours >= floor;
-  const percentOff = original > 0 && yours > 0 && validPrice ? Math.round(((original - yours) / original) * 100) : null;
+  const ceiling = original > 0 ? maxAllowedPrice(original, condition) : Infinity;
+  const validPrice = yours < original && yours <= ceiling;
+  const savings = original > 0 && yours > 0 && validPrice ? Math.round(original - yours) : null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (yours >= original) return setError('Your price must be strictly lower than the original price.');
-    if (yours < floor) return setError(`That's discounted more than this condition allows — ${Math.ceil(floor)} EGP minimum.`);
+    if (yours > ceiling) return setError(`For this condition, your price can't be more than ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`);
     if (photoUrls.length === 0) return setError('At least one photo is required.');
+    if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
+    if (!area) return setError('An area is required.');
 
     setBusy(true);
     setError(null);
     try {
       await api.patch(`/api/listings/${listing.id}`, {
+        title,
+        category,
+        condition,
+        size: category === 'Clothes' ? size : undefined,
+        area,
+        reasonForSelling,
         price: yours,
         originalPrice: original,
         allowOffers,
@@ -243,6 +270,29 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
     <form className="post-form" onSubmit={handleSubmit}>
       <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 14.5 }}>Edit "{listing.title}"</h3>
 
+      <label>Item name</label>
+      <input required value={title} onChange={(e) => setTitle(e.target.value)} />
+
+      <label>Category</label>
+      <select value={category} onChange={(e) => setCategory(e.target.value)}>
+        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+      </select>
+
+      {category === 'Clothes' && (
+        <>
+          <label>Size</label>
+          <select value={size} onChange={(e) => setSize(e.target.value)} required>
+            <option value="">Select size</option>
+            {CLOTHES_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </>
+      )}
+
+      <label>How many times used</label>
+      <select value={condition} onChange={(e) => setCondition(e.target.value)}>
+        {CONDITIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+      </select>
+
       <label>Photos</label>
       <MultiImageUpload value={photoUrls} onChange={setPhotoUrls} />
 
@@ -252,8 +302,14 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
       <label>Your price (EGP)</label>
       <input required type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} />
       {!validPrice && yours >= original && <p className="field-error">Your price must be strictly lower than the original price.</p>}
-      {!validPrice && yours > 0 && yours < floor && <p className="field-error">That's discounted more than this condition allows — {Math.ceil(floor)} EGP minimum.</p>}
-      {percentOff !== null && <p className="discount-hint">{percentOff}% below original price</p>}
+      {!validPrice && yours > 0 && yours > ceiling && <p className="field-error">That's too close to the original price for this condition — {Math.floor(ceiling)} EGP maximum.</p>}
+      {savings !== null && <p className="discount-hint">You'll save the buyer {savings} EGP</p>}
+
+      <label>Reason for selling</label>
+      <textarea required rows={2} value={reasonForSelling} onChange={(e) => setReasonForSelling(e.target.value)} />
+
+      <label>Area</label>
+      <LocationAreaField value={area} onChange={setArea} />
 
       <div className="toggle-row">
         <Toggle checked={allowOffers} onChange={setAllowOffers} label="Negotiation" />
