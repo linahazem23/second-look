@@ -450,6 +450,16 @@ model SupportMessage {
   createdAt  DateTime @default(now())
 }
 
+// General feedback about the app itself — distinct from a listing report or a
+// customer-support question, both of which are about a specific thing gone
+// wrong. This is just "here's what I think," read by the team, no reply loop.
+model AppFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  createdAt DateTime @default(now())
+}
+
 model AdminUser {
   id            String   @id @default(cuid())
   email         String   @unique

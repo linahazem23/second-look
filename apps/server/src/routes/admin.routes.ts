@@ -590,6 +590,17 @@ adminRouter.post('/support-threads/:userId/messages', async (req: AuthedRequest,
   return res.status(201).json({ message });
 });
 
+// ---- App feedback ----
+adminRouter.get('/feedback', async (_req, res) => {
+  const feedback = await prisma.appFeedback.findMany({ orderBy: { createdAt: 'desc' } });
+  const userIds = [...new Set(feedback.map((f) => f.userId))];
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, fullName: true, email: true } });
+  const userById = new Map(users.map((u) => [u.id, u]));
+  return res.json({
+    feedback: feedback.map((f) => ({ ...f, user: userById.get(f.userId) ?? null }))
+  });
+});
+
 // ---- Ads ----
 adminRouter.get('/ads', async (_req, res) => {
   const ads = await prisma.ad.findMany({ orderBy: { startDate: 'desc' } });

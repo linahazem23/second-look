@@ -17,7 +17,8 @@ export const ADMIN_SENDER_ID = 'admin';
 const TIPS_MESSAGE =
   "Hiii besties 💕 girl to girl: be upfront about condition and price, and agree on a delivery method here " +
   "before anything ships. When you're both ready, tap \"Buy now\" to pay safely — Second Look holds the payment " +
-  "until delivery is confirmed, so neither of you is stuck trusting a stranger blind.";
+  "until delivery is confirmed, so neither of you is stuck trusting a stranger blind. " +
+  "If anything ever feels off or you need a real person, tap the 🆘 SOS button up top — it brings our support team right into this chat.";
 
 const startSchema = z.object({ listingId: z.string().min(1) });
 

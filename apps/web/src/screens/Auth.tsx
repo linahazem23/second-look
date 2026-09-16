@@ -4,10 +4,24 @@ import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
 
 type Mode = 'login' | 'signup' | 'forgot';
+type SignupStep = 1 | 2 | 3;
+
+// A blank username field asks the user to invent something on the spot —
+// suggesting one from her name (plus a short random tag to dodge collisions)
+// gives her something to just accept or tweak instead.
+function suggestUsername(fullName: string): string {
+  const base = fullName
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 14);
+  const tag = Math.floor(10 + Math.random() * 90);
+  return base ? `${base}${tag}` : `diva${tag}`;
+}
 
 export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?: Mode; reason?: string; onCancel?: () => void }) {
   const { login, signup } = useAuth();
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [signupStep, setSignupStep] = useState<SignupStep>(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,8 +29,10 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [area, setArea] = useState('');
   const [age, setAge] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [languagePreference, setLanguagePreference] = useState('en');
   const [referralCode, setReferralCode] = useState(() => new URLSearchParams(window.location.search).get('ref') ?? '');
   const [guardianName, setGuardianName] = useState('');
@@ -53,6 +69,23 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
     }
   }
 
+  function goToStep2(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSignupStep(2);
+  }
+
+  function goToStep3(e: React.FormEvent) {
+    e.preventDefault();
+    if (isMinor && (!guardianName || !guardianPhone || !guardianEmail)) {
+      setError("A guardian's name, phone, and email are required for members under 18.");
+      return;
+    }
+    setError(null);
+    if (!usernameTouched) setUsername(suggestUsername(fullName));
+    setSignupStep(3);
+  }
+
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -66,6 +99,7 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
         fullName,
         area,
         age: age ? Number(age) : undefined,
+        phoneNumber,
         languagePreference,
         referralCode: referralCode || undefined,
         username: username || undefined,
@@ -82,9 +116,22 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
 
   return (
     <div id="onboarding">
+      {mode === 'signup' && (
+        <div className="ob-dots">
+          {[1, 2, 3].map((s) => <div key={s} className={s <= signupStep ? 'on' : ''} />)}
+        </div>
+      )}
       <div className="ob-body">
         {onCancel && (
-          <button type="button" className="back-btn" style={{ marginBottom: 8 }} onClick={onCancel}>
+          <button
+            type="button"
+            className="back-btn"
+            style={{ marginBottom: 8 }}
+            onClick={() => {
+              if (mode === 'signup' && signupStep > 1) { setSignupStep((s) => (s - 1) as SignupStep); setError(null); return; }
+              onCancel();
+            }}
+          >
             <Icon name="arrowLeft" size={18} />
           </button>
         )}
@@ -114,7 +161,7 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
             {error && <p className="ob-err">{error}</p>}
             <div className="ob-footer" style={{ padding: '16px 0 0' }}>
               <button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Log in'}</button>
-              <button type="button" className="switch-link" onClick={() => { setMode('signup'); setError(null); }}>
+              <button type="button" className="switch-link" onClick={() => { setMode('signup'); setSignupStep(1); setError(null); }}>
                 New here? Create an account
               </button>
             </div>
@@ -140,25 +187,39 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
               </div>
             </form>
           )
-        ) : (
-          <form onSubmit={handleSignup}>
+        ) : signupStep === 1 ? (
+          <form onSubmit={goToStep2}>
             <label>Full name</label>
             <input required value={fullName} onChange={(e) => setFullName(e.target.value)} />
-            <label>Username (optional)</label>
-            <input
-              placeholder="Shown instead of your name — leave blank to use your name"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-              maxLength={20}
-            />
             <label>Email</label>
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             <label>Password</label>
             <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} />
+            {error && <p className="ob-err">{error}</p>}
+            <div className="ob-footer" style={{ padding: '16px 0 0' }}>
+              <button type="submit">Continue</button>
+              <button type="button" className="switch-link" onClick={() => { setMode('login'); setError(null); }}>
+                Already have an account? Log in
+              </button>
+            </div>
+          </form>
+        ) : signupStep === 2 ? (
+          <form onSubmit={goToStep3}>
             <label>Area / neighborhood</label>
             <input required placeholder="e.g. Maadi" value={area} onChange={(e) => setArea(e.target.value)} />
             <label>Age</label>
-            <input type="number" min={1} value={age} onChange={(e) => setAge(e.target.value)} />
+            <input type="number" min={1} required value={age} onChange={(e) => setAge(e.target.value)} />
+            <label>Phone number</label>
+            <input
+              type="tel"
+              required
+              placeholder="01xxxxxxxxx"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+            />
+            <p className="lead" style={{ fontSize: 11.5, marginTop: -6 }}>
+              So we can reach you fast if anything urgent ever comes up with an order.
+            </p>
 
             {isMinor && (
               <div className="plain-card" style={{ margin: '10px 0' }}>
@@ -174,6 +235,23 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
                 <input required type="email" value={guardianEmail} onChange={(e) => setGuardianEmail(e.target.value)} />
               </div>
             )}
+            {error && <p className="ob-err">{error}</p>}
+            <div className="ob-footer" style={{ padding: '16px 0 0' }}>
+              <button type="submit">Continue</button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleSignup}>
+            <label>Username</label>
+            <input
+              placeholder="Shown instead of your name — leave blank to use your name"
+              value={username}
+              onChange={(e) => { setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, '')); setUsernameTouched(true); }}
+              maxLength={20}
+            />
+            <p className="lead" style={{ fontSize: 11.5, marginTop: -6 }}>
+              We suggested one — change it, or clear the field to just use your real name.
+            </p>
 
             <label>Preferred language</label>
             <select value={languagePreference} onChange={(e) => setLanguagePreference(e.target.value)}>
@@ -185,9 +263,6 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
             {error && <p className="ob-err">{error}</p>}
             <div className="ob-footer" style={{ padding: '16px 0 0' }}>
               <button type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
-              <button type="button" className="switch-link" onClick={() => { setMode('login'); setError(null); }}>
-                Already have an account? Log in
-              </button>
             </div>
           </form>
         )}

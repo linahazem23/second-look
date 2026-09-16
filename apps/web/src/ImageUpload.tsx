@@ -69,20 +69,20 @@ export function ImageUpload({ value, onChange }: { value: string | null; onChang
   );
 }
 
-// Multi-photo upload for listings — every photo is cropped to a square before
-// upload, so the grid stays consistent regardless of the source image's shape.
+// Multi-photo upload for listings — cropping to a square is offered but
+// optional; keeping the original shape shows taller (uncropped) in the grid.
 export function MultiImageUpload({ value, onChange }: { value: string[]; onChange: (urls: string[]) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queue, setQueue] = useState<File[]>([]);
 
-  async function handleCropped(blob: Blob) {
+  async function upload(fileOrBlob: File | Blob) {
     setQueue((q) => q.slice(1));
     setBusy(true);
     setError(null);
     try {
-      const url = await uploadFile(blob);
+      const url = await uploadFile(fileOrBlob);
       onChange([...value, url]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -128,10 +128,11 @@ export function MultiImageUpload({ value, onChange }: { value: string[]; onChang
         <ImageCropModal
           file={queue[0]}
           onCancel={() => setQueue((q) => q.slice(1))}
-          onCropped={handleCropped}
+          onCropped={upload}
+          onKeepOriginal={upload}
         />
       )}
-      <p className="discount-hint">{value.length}/{MAX_IMAGES} photos &middot; drag to reposition, then crop to a square</p>
+      <p className="discount-hint">{value.length}/{MAX_IMAGES} photos &middot; crop to a square or keep the original shape</p>
       {error && <p className="field-error">{error}</p>}
     </div>
   );

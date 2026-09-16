@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 const VIEWPORT_SIZE = 280;
 const OUTPUT_SIZE = 800;
 
-export function ImageCropModal({ file, onCancel, onCropped }: { file: File; onCancel: () => void; onCropped: (blob: Blob) => void }) {
+export function ImageCropModal({ file, onCancel, onCropped, onKeepOriginal }: { file: File; onCancel: () => void; onCropped: (blob: Blob) => void; onKeepOriginal?: (file: File) => void }) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [imgSize, setImgSize] = useState({ width: 0, height: 0 });
   const [zoom, setZoom] = useState(1);
@@ -111,10 +111,18 @@ export function ImageCropModal({ file, onCancel, onCropped }: { file: File; onCa
           onChange={(e) => handleZoomChange(Number(e.target.value))}
           style={{ width: VIEWPORT_SIZE, marginTop: 12 }}
         />
-        <div className="form-row" style={{ marginTop: 14 }}>
+        {onKeepOriginal && (
+          <p className="lead" style={{ fontSize: 11.5, marginTop: 10 }}>
+            Prefer the full photo, uncropped? It'll show taller in the grid instead of squared off.
+          </p>
+        )}
+        <div className="form-row" style={{ marginTop: onKeepOriginal ? 6 : 14 }}>
           <button type="button" className="btn-cancel" onClick={onCancel}>Cancel</button>
+          {onKeepOriginal && (
+            <button type="button" className="btn-outline" onClick={() => onKeepOriginal(file)}>Keep original</button>
+          )}
           <button type="button" className="btn-solid" onClick={confirmCrop}>
-            <span className="shine" /><span className="label">Use photo</span>
+            <span className="shine" /><span className="label">Crop to square</span>
           </button>
         </div>
       </div>

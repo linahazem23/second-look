@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { api } from './api.js';
+import { api, friendlyError } from './api.js';
 import { useAuth } from './AuthContext.js';
 import { Auth } from './screens/Auth.js';
 import { KycGate, ProfileQuizGate, GuidelinesGate, HOW_TO_STEPS } from './screens/Onboarding.js';
@@ -48,6 +48,7 @@ export function App() {
   const [hasUnreadChats, setHasUnreadChats] = useState(false);
   const [authPrompt, setAuthPrompt] = useState<{ mode: 'login' | 'signup'; reason?: string } | null>(null);
   const [showDivaModal, setShowDivaModal] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const consumedDeepLink = useRef(false);
   const contentRef = useRef<HTMLElement>(null);
 
@@ -316,6 +317,7 @@ export function App() {
             <>
               <button className="item" onClick={() => { setMenuView('profile'); setMenuOpen(false); }}>My profile</button>
               <button className="item" onClick={() => { setMenuView('guidelines'); setMenuOpen(false); }}>Community guidelines</button>
+              <button className="item" onClick={() => { setShowFeedback(true); setMenuOpen(false); }}>Send feedback</button>
               <button className="item" onClick={logout}>Log out</button>
             </>
           ) : (
@@ -329,6 +331,65 @@ export function App() {
       </div>
 
       {showDivaModal && <DivaModal onClose={() => setShowDivaModal(false)} />}
+      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
+    </div>
+  );
+}
+
+function FeedbackModal({ onClose }: { onClose: () => void }) {
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!message.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post('/api/feedback', { message: message.trim() });
+      setSent(true);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(90,46,61,0.32)', zIndex: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div className="post-form" style={{ margin: '0 18px 18px', width: '100%', maxWidth: 394 }} onClick={(e) => e.stopPropagation()}>
+        {sent ? (
+          <>
+            <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 14.5 }}>Thank you!</h3>
+            <div className="sub" style={{ marginTop: 6 }}>Your feedback goes straight to the team — we read every one.</div>
+            <div className="form-row">
+              <button type="button" className="btn-solid" onClick={onClose}><span className="shine" /><span className="label">Done</span></button>
+            </div>
+          </>
+        ) : (
+          <form onSubmit={submit}>
+            <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 14.5 }}>Got feedback on the app?</h3>
+            <div className="sub" style={{ marginBottom: 8 }}>Love it, hate it, found something confusing — tell us.</div>
+            <textarea
+              required
+              rows={4}
+              placeholder="What's on your mind…"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              maxLength={2000}
+            />
+            {error && <p className="field-error">{error}</p>}
+            <div className="form-row">
+              <button type="button" className="btn-cancel" onClick={onClose}>Cancel</button>
+              <button type="submit" className="btn-solid" disabled={busy || !message.trim()}>
+                <span className="shine" /><span className="label">{busy ? 'Sending…' : 'Send feedback'}</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

@@ -20,8 +20,9 @@ import { Admins } from './pages/Admins.js';
 import { KycQueue } from './pages/KycQueue.js';
 import { GuardianConsentQueue } from './pages/GuardianConsentQueue.js';
 import { Growth } from './pages/Growth.js';
+import { Feedback } from './pages/Feedback.js';
 
-type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'support' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'guardian' | 'growth';
+type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'support' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'guardian' | 'growth' | 'feedback';
 
 const NAV: { id: Page; label: string; icon: Parameters<typeof Icon>[0]['name']; superAdminOnly?: boolean }[] = [
   { id: 'overview', label: 'Overview', icon: 'overview' },
@@ -37,6 +38,7 @@ const NAV: { id: Page; label: string; icon: Parameters<typeof Icon>[0]['name']; 
   { id: 'appeals', label: 'Appeals', icon: 'appeals' },
   { id: 'reviews', label: 'Reviews', icon: 'reviews' },
   { id: 'growth', label: 'Growth', icon: 'reviews' },
+  { id: 'feedback', label: 'App feedback', icon: 'reviews' },
   { id: 'ads', label: 'Ads', icon: 'ads', superAdminOnly: true },
   { id: 'admins', label: 'Admins', icon: 'users', superAdminOnly: true }
 ];
@@ -104,6 +106,7 @@ export function App() {
             {page === 'appeals' && <Appeals />}
             {page === 'reviews' && <Reviews />}
             {page === 'growth' && <Growth />}
+            {page === 'feedback' && <Feedback />}
             {page === 'ads' && isSuperAdmin && <Ads />}
             {page === 'admins' && isSuperAdmin && <Admins />}
           </>

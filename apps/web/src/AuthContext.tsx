@@ -23,7 +23,7 @@ export interface CurrentUser {
 interface AuthState {
   user: CurrentUser | null;
   loading: boolean;
-  signup: (data: { email: string; password: string; fullName: string; area: string; age?: number; languagePreference?: string; referralCode?: string; username?: string; guardianName?: string; guardianPhone?: string; guardianEmail?: string }) => Promise<void>;
+  signup: (data: { email: string; password: string; fullName: string; area: string; age?: number; phoneNumber: string; languagePreference?: string; referralCode?: string; username?: string; guardianName?: string; guardianPhone?: string; guardianEmail?: string }) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;

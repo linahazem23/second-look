@@ -11,6 +11,7 @@ import { upload, uploadToStorage } from '../lib/upload.js';
 export const authRouter = Router();
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
+const PHONE_PATTERN = /^\+?[0-9]{8,15}$/;
 const MINOR_AGE_THRESHOLD = 18;
 
 const signupSchema = z
@@ -20,6 +21,7 @@ const signupSchema = z
     fullName: z.string().min(1),
     area: z.string().min(1),
     age: z.number().int().positive().optional(),
+    phoneNumber: z.string().regex(PHONE_PATTERN, 'Enter a valid phone number.'),
     languagePreference: z.string().default('en'),
     referralCode: z.string().optional(),
     username: z.string().regex(USERNAME_PATTERN, 'Username must be 3-20 letters, numbers, or underscores.').optional(),
@@ -44,6 +46,9 @@ authRouter.post('/signup', async (req, res) => {
     if (usernameTaken) return res.status(409).json({ error: 'That username is already taken.' });
   }
 
+  const phoneTaken = await prisma.user.findUnique({ where: { phoneNumber: parsed.data.phoneNumber } });
+  if (phoneTaken) return res.status(409).json({ error: 'That phone number is already registered to another account.' });
+
   // An invalid/unknown referral code is silently ignored rather than blocking signup —
   // referral attribution is a growth nicety, not something worth adding friction for.
   let referredByUserId: string | undefined;
@@ -67,6 +72,7 @@ authRouter.post('/signup', async (req, res) => {
       fullName: parsed.data.fullName,
       area: parsed.data.area,
       age: parsed.data.age,
+      phoneNumber: parsed.data.phoneNumber,
       languagePreference: parsed.data.languagePreference,
       username: parsed.data.username,
       referralCode,
@@ -227,7 +233,6 @@ authRouter.patch('/username', requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ username: user.username });
 });
 
-const PHONE_PATTERN = /^\+?[0-9]{8,15}$/;
 const OTP_VALID_MS = 5 * 60 * 1000;
 
 // A verified phone is Second Look's fastest channel to reach a member directly

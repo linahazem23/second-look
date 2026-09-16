@@ -78,6 +78,11 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
     }
   }
 
+  function tapReport(item: Listing) {
+    if (!user) return onNeedAuth?.();
+    setReportTarget(item);
+  }
+
   const [category, setCategory] = useState<string>('All');
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -297,7 +302,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
           onClose={() => setViewingItem(null)}
           onBuy={() => tapBuy(viewingItem)}
           onToggleSave={() => toggleSave(viewingItem)}
-          onReport={() => { setViewingItem(null); setReportTarget(viewingItem); }}
+          onReport={() => { setViewingItem(null); tapReport(viewingItem); }}
           onBoost={() => boostListing(viewingItem.id)}
           onViewProfile={onViewProfile ? () => { setViewingItem(null); onViewProfile(viewingItem.seller.id); } : undefined}
         />
@@ -370,7 +375,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                       <button
                         className="card-icon-btn"
                         aria-label="Report this listing"
-                        onClick={(e) => { e.stopPropagation(); setReportTarget(item); }}
+                        onClick={(e) => { e.stopPropagation(); tapReport(item); }}
                       >
                         <Icon name="flag" size={13} />
                       </button>
@@ -511,6 +516,22 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
   const [slide, setSlide] = useState<'photos' | 'details'>('photos');
   const [photoIndex, setPhotoIndex] = useState(0);
   const images = item.images.length > 0 ? item.images : [null];
+  const swipeStartX = React.useRef<number | null>(null);
+
+  function handleSwipeStart(e: React.TouchEvent | React.PointerEvent) {
+    const x = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    swipeStartX.current = x;
+  }
+
+  function handleSwipeEnd(e: React.TouchEvent | React.PointerEvent) {
+    if (swipeStartX.current === null || images.length < 2) return;
+    const x = 'changedTouches' in e ? e.changedTouches[0].clientX : e.clientX;
+    const delta = x - swipeStartX.current;
+    swipeStartX.current = null;
+    const SWIPE_THRESHOLD = 40;
+    if (delta > SWIPE_THRESHOLD) setPhotoIndex((i) => (i - 1 + images.length) % images.length);
+    else if (delta < -SWIPE_THRESHOLD) setPhotoIndex((i) => (i + 1) % images.length);
+  }
 
   return (
     <div className="listing-detail-backdrop" onClick={onClose}>
@@ -525,7 +546,13 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
 
         {slide === 'photos' ? (
           <div className="listing-detail-photos">
-            <div className="listing-detail-photo-frame">
+            <div
+              className="listing-detail-photo-frame"
+              onTouchStart={handleSwipeStart}
+              onTouchEnd={handleSwipeEnd}
+              onPointerDown={handleSwipeStart}
+              onPointerUp={handleSwipeEnd}
+            >
               {images[photoIndex] ? (
                 <img src={images[photoIndex]!} alt={item.title} />
               ) : (

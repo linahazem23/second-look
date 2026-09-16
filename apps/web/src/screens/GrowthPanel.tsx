@@ -73,18 +73,21 @@ export function GrowthPanel() {
     return (
       <div className="plain-card">
         <h3>Grow &amp; earn — locked</h3>
-        <div className="sub">Post 3 listings to unlock free Second Look Plus membership, either by sharing a TikTok or referring 3 friends.</div>
+        <div className="sub">
+          Post 3 listings to unlock <strong>free unlimited boosting</strong> for a month (normally 25 EGP per boost) —
+          earn it by sharing a TikTok or referring 3 friends.
+        </div>
       </div>
     );
   }
 
   return (
     <div className="plain-card">
-      <h3>Grow &amp; earn {status.isPlusActive && <span className="match-badge">Plus active</span>}</h3>
+      <h3>Grow &amp; earn {status.isPlusActive && <span className="match-badge">Free boosting active</span>}</h3>
       <div className="sub">
         {status.isPlusActive && status.membershipExpiresAt
-          ? `Free unlimited boosting until ${new Date(status.membershipExpiresAt).toLocaleDateString()}.`
-          : 'No active membership right now — earn a free month below.'}
+          ? `You boost for free (no 25 EGP charge) until ${new Date(status.membershipExpiresAt).toLocaleDateString()}.`
+          : 'No free boosting active right now — earn a free month of it below.'}
       </div>
 
       <div className="stitch" style={{ margin: '14px 0' }} />
@@ -123,11 +126,11 @@ export function GrowthPanel() {
           {copied ? 'Copied!' : 'Copy invite link'}
         </button>
       </div>
-      <div className="sub">{status.verifiedReferralCount} verified friend{status.verifiedReferralCount === 1 ? '' : 's'} so far &middot; every {status.referralBatchSize} earns a free month, no limit.</div>
+      <div className="sub">{status.verifiedReferralCount} verified friend{status.verifiedReferralCount === 1 ? '' : 's'} so far &middot; every {status.referralBatchSize} earns a free month of unlimited boosting, no limit.</div>
       {status.claimableReferralBatches > 0 && (
         <div className="row">
           <button className="btn-solid" disabled={busy} onClick={claimReferralReward}>
-            <span className="shine" /><span className="label">Claim {status.claimableReferralBatches} free month{status.claimableReferralBatches > 1 ? 's' : ''}</span>
+            <span className="shine" /><span className="label">Claim {status.claimableReferralBatches} free month{status.claimableReferralBatches > 1 ? 's' : ''} of boosting</span>
           </button>
         </div>
       )}
