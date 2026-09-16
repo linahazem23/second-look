@@ -17,7 +17,8 @@ const STAT_LABELS: Record<string, string> = {
   pendingAppeals: 'Pending appeals',
   pendingReports: 'Reported listings',
   pendingKyc: 'Pending ID verification',
-  pendingGuardianConsents: 'Pending guardian consent'
+  pendingGuardianConsents: 'Pending guardian consent',
+  pendingSupportReplies: 'Support threads needing reply'
 };
 
 export function Overview() {

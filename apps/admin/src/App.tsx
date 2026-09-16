@@ -12,6 +12,7 @@ import { Reports } from './pages/Reports.js';
 import { Orders } from './pages/Orders.js';
 import { Moderation } from './pages/Moderation.js';
 import { Chats } from './pages/Chats.js';
+import { SupportInbox } from './pages/SupportInbox.js';
 import { Appeals } from './pages/Appeals.js';
 import { Reviews } from './pages/Reviews.js';
 import { Ads } from './pages/Ads.js';
@@ -20,7 +21,7 @@ import { KycQueue } from './pages/KycQueue.js';
 import { GuardianConsentQueue } from './pages/GuardianConsentQueue.js';
 import { Growth } from './pages/Growth.js';
 
-type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'guardian' | 'growth';
+type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'support' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'guardian' | 'growth';
 
 const NAV: { id: Page; label: string; icon: Parameters<typeof Icon>[0]['name']; superAdminOnly?: boolean }[] = [
   { id: 'overview', label: 'Overview', icon: 'overview' },
@@ -32,6 +33,7 @@ const NAV: { id: Page; label: string; icon: Parameters<typeof Icon>[0]['name']; 
   { id: 'orders', label: 'Orders', icon: 'orders' },
   { id: 'moderation', label: 'Moderation', icon: 'moderation' },
   { id: 'chats', label: 'Chats', icon: 'chats' },
+  { id: 'support', label: 'Support inbox', icon: 'chats' },
   { id: 'appeals', label: 'Appeals', icon: 'appeals' },
   { id: 'reviews', label: 'Reviews', icon: 'reviews' },
   { id: 'growth', label: 'Growth', icon: 'reviews' },
@@ -53,7 +55,8 @@ export function App() {
         appeals: res.stats.pendingAppeals,
         reports: res.stats.pendingReports,
         kyc: res.stats.pendingKyc,
-        growth: res.stats.pendingVideoSubmissions
+        growth: res.stats.pendingVideoSubmissions,
+        support: res.stats.pendingSupportReplies
       });
     }).catch(() => {});
   }, [admin, page]);
@@ -97,6 +100,7 @@ export function App() {
             {page === 'orders' && <Orders />}
             {page === 'moderation' && <Moderation />}
             {page === 'chats' && <Chats />}
+            {page === 'support' && <SupportInbox />}
             {page === 'appeals' && <Appeals />}
             {page === 'reviews' && <Reviews />}
             {page === 'growth' && <Growth />}

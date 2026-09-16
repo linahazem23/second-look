@@ -57,18 +57,21 @@ export function App() {
     contentRef.current?.scrollTo(0, 0);
   }, [tab, menuView, viewingProfileId]);
 
-  // Lets a "you have a new message" email link (?order=<id> or ?inquiry=<id>)
-  // drop the user straight into that conversation instead of the home feed.
+  // Lets a "you have a new message" email link (?order=<id>, ?inquiry=<id>, or
+  // ?support=1 for a support reply) drop the user straight into that
+  // conversation instead of the home feed.
   useEffect(() => {
     if (!user || consumedDeepLink.current) return;
     const params = new URLSearchParams(window.location.search);
     const orderId = params.get('order');
     const inquiryId = params.get('inquiry');
-    if (!orderId && !inquiryId) return;
+    const support = params.get('support');
+    if (!orderId && !inquiryId && !support) return;
 
     consumedDeepLink.current = true;
     if (orderId) setPendingOrderId(orderId);
     if (inquiryId) setPendingInquiryId(inquiryId);
+    if (support) setPendingSupport(true);
     setTab('chat');
     window.history.replaceState(null, '', window.location.pathname);
   }, [user]);

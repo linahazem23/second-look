@@ -4,6 +4,7 @@ import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signAdminToken, requireAdmin, requireRole, type AuthedRequest } from '../lib/auth.js';
 import { applyStrike, applyImmediateBlock, hasActiveEscrowOrder } from '../lib/strikes.js';
 import { grantMembershipDays, MEMBERSHIP_GRANT_DAYS, VIDEO_PROMO_MAX_GRANTS } from '../lib/membership.js';
+import { notifySupportReply } from '../lib/email.js';
 
 export const adminRouter = Router();
 
@@ -64,8 +65,19 @@ adminRouter.get('/overview', async (_req, res) => {
     ageDistribution[bucket] = (ageDistribution[bucket] ?? 0) + 1;
   }
 
+  // No single-query way to count "threads whose latest message isn't from
+  // support" — reduced the same way /support-threads builds its list.
+  const supportMessages = await prisma.supportMessage.findMany({ orderBy: { createdAt: 'desc' }, select: { userId: true, fromSupport: true } });
+  const seenUsers = new Set<string>();
+  let pendingSupportReplies = 0;
+  for (const m of supportMessages) {
+    if (seenUsers.has(m.userId)) continue;
+    seenUsers.add(m.userId);
+    if (!m.fromSupport) pendingSupportReplies++;
+  }
+
   return res.json({
-    stats: { activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingGuardianConsents, pendingVideoSubmissions },
+    stats: { activeUsers, liveListings, ordersThisWeek, openCases, pendingAppeals, pendingReports, pendingKyc, pendingGuardianConsents, pendingVideoSubmissions, pendingSupportReplies },
     revenue: {
       buyerProtectionFees: feeRevenue._sum.buyerProtectionFee ?? 0,
       boosts: boostRevenue._sum.amount ?? 0
@@ -410,6 +422,79 @@ adminRouter.post('/chats/:orderId/open-case', async (req: AuthedRequest, res) =>
     }
   });
   return res.status(201).json({ case: modCase });
+});
+
+// ---- Customer support inbox ----
+// SupportMessage has no user relation, so threads are built in two passes:
+// the message history (most recent first) reduced down to one row per user,
+// then a lookup of those users' names/emails.
+adminRouter.get('/support-threads', async (_req, res) => {
+  const messages = await prisma.supportMessage.findMany({ orderBy: { createdAt: 'desc' } });
+
+  const latestByUser = new Map<string, typeof messages[number]>();
+  const needsReplyByUser = new Set<string>();
+  for (const m of messages) {
+    if (!latestByUser.has(m.userId)) {
+      latestByUser.set(m.userId, m);
+      // The most recent message in the thread came from the user, not support.
+      if (!m.fromSupport) needsReplyByUser.add(m.userId);
+    }
+  }
+
+  const userIds = [...latestByUser.keys()];
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, fullName: true, username: true, email: true } });
+  const userById = new Map(users.map((u) => [u.id, u]));
+
+  const threads = userIds
+    .map((userId) => {
+      const user = userById.get(userId);
+      const last = latestByUser.get(userId)!;
+      if (!user) return null;
+      return {
+        userId,
+        userName: user.fullName,
+        username: user.username,
+        userEmail: user.email,
+        lastMessage: { body: last.body, fromSupport: last.fromSupport, createdAt: last.createdAt },
+        needsReply: needsReplyByUser.has(userId)
+      };
+    })
+    .filter((t): t is NonNullable<typeof t> => t !== null)
+    // Threads waiting on a reply surface first, then most recently active.
+    .sort((a, b) => {
+      if (a.needsReply !== b.needsReply) return a.needsReply ? -1 : 1;
+      return new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime();
+    });
+
+  return res.json({ threads });
+});
+
+adminRouter.get('/support-threads/:userId/messages', async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.params.userId }, select: { id: true, fullName: true, username: true, email: true } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const messages = await prisma.supportMessage.findMany({ where: { userId: req.params.userId }, orderBy: { createdAt: 'asc' } });
+  return res.json({ user, messages });
+});
+
+adminRouter.post('/support-threads/:userId/messages', async (req: AuthedRequest, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.params.userId } });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const parsed = z.object({ body: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const message = await prisma.supportMessage.create({
+    data: { userId: user.id, body: parsed.data.body, fromSupport: true }
+  });
+
+  notifySupportReply({
+    recipientEmail: user.email,
+    recipientName: user.username ?? user.fullName,
+    preview: parsed.data.body
+  }).catch(() => {});
+
+  return res.status(201).json({ message });
 });
 
 // ---- Ads ----
