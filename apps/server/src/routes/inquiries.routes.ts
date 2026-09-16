@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/db.js';
 import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
+import { notifyNewMessage } from '../lib/email.js';
 
 export const inquiriesRouter = Router();
 
@@ -51,7 +52,10 @@ inquiriesRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 async function assertParticipant(inquiryId: string, userId: string) {
-  const inquiry = await prisma.inquiry.findUnique({ where: { id: inquiryId } });
+  const inquiry = await prisma.inquiry.findUnique({
+    where: { id: inquiryId },
+    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true, email: true } }, seller: { select: { fullName: true, email: true } } }
+  });
   if (!inquiry) return null;
   if (inquiry.buyerId !== userId && inquiry.sellerId !== userId) return undefined;
   return inquiry;
@@ -110,6 +114,18 @@ inquiriesRouter.post('/:id/messages', requireAuth, async (req: AuthedRequest, re
       flaggedKeyword
     }
   });
+
+  const recipient = inquiry.buyerId === req.userId ? inquiry.seller : inquiry.buyer;
+  const sender = inquiry.buyerId === req.userId ? inquiry.buyer : inquiry.seller;
+  notifyNewMessage({
+    threadType: 'inquiry',
+    threadId: inquiry.id,
+    recipientEmail: recipient.email,
+    recipientName: recipient.fullName,
+    senderName: sender.fullName,
+    itemTitle: inquiry.listing.title,
+    preview: message.messageText || (message.attachmentType === 'video' ? '[Video]' : '[Photo]')
+  }).catch(() => {});
 
   return res.status(201).json({ message });
 });

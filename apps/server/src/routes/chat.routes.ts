@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/db.js';
 import { requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
+import { notifyNewMessage } from '../lib/email.js';
 
 export const chatRouter = Router();
 
@@ -49,7 +50,10 @@ chatRouter.post('/support/messages', requireAuth, async (req: AuthedRequest, res
 });
 
 async function assertParticipant(orderId: string, userId: string) {
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { listing: { select: { title: true } }, buyer: { select: { fullName: true, email: true } }, seller: { select: { fullName: true, email: true } } }
+  });
   if (!order) return null;
   if (order.buyerId !== userId && order.sellerId !== userId) return undefined;
   return order;
@@ -95,6 +99,18 @@ chatRouter.post('/:orderId/messages', requireAuth, async (req: AuthedRequest, re
       flaggedKeyword
     }
   });
+
+  const recipient = order.buyerId === req.userId ? order.seller : order.buyer;
+  const sender = order.buyerId === req.userId ? order.buyer : order.seller;
+  notifyNewMessage({
+    threadType: 'order',
+    threadId: order.id,
+    recipientEmail: recipient.email,
+    recipientName: recipient.fullName,
+    senderName: sender.fullName,
+    itemTitle: order.listing.title,
+    preview: message.messageText || (message.attachmentType === 'video' ? '[Video]' : '[Photo]')
+  }).catch(() => {});
 
   return res.status(201).json({ message });
 });

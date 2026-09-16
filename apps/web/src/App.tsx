@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { useAuth } from './AuthContext.js';
 import { Auth } from './screens/Auth.js';
@@ -26,6 +26,23 @@ export function App() {
   const [pendingSupport, setPendingSupport] = useState(false);
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
   const [hasUnreadChats, setHasUnreadChats] = useState(false);
+  const consumedDeepLink = useRef(false);
+
+  // Lets a "you have a new message" email link (?order=<id> or ?inquiry=<id>)
+  // drop the user straight into that conversation instead of the home feed.
+  useEffect(() => {
+    if (!user || consumedDeepLink.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('order');
+    const inquiryId = params.get('inquiry');
+    if (!orderId && !inquiryId) return;
+
+    consumedDeepLink.current = true;
+    if (orderId) setPendingOrderId(orderId);
+    if (inquiryId) setPendingInquiryId(inquiryId);
+    setTab('chat');
+    window.history.replaceState(null, '', window.location.pathname);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
