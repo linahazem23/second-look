@@ -304,7 +304,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       )}
       {loading && <div className="empty-state">Loading listings…</div>}
       {error && <div className="empty-state">{error}</div>}
-      {!loading && !error && listings.length === 0 && <div className="empty-state">No listings yet in this category.</div>}
+      {!loading && !error && listings.length === 0 && <div className="empty-state">Nothing here yet — be the queen that sells first 👑</div>}
 
       {!loading && !error && listings.length > 0 && (
         <>
@@ -442,7 +442,7 @@ function FilterSheet(props: FilterSheetProps) {
         )}
 
         <div className="field-block">
-          <Toggle checked={allowOffersOnly} onChange={setAllowOffersOnly} label="Allows offers only" />
+          <Toggle checked={allowOffersOnly} onChange={setAllowOffersOnly} label="Negotiable only" />
         </div>
 
         <div className="form-row">

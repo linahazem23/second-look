@@ -47,6 +47,15 @@ export function App() {
   const [hasUnreadChats, setHasUnreadChats] = useState(false);
   const [authPrompt, setAuthPrompt] = useState<{ mode: 'login' | 'signup'; reason?: string } | null>(null);
   const consumedDeepLink = useRef(false);
+  const contentRef = useRef<HTMLElement>(null);
+
+  // main.content is one persistent scrollable element shared by every tab —
+  // switching from a long scrolled-down feed to a short screen (like the Want
+  // picker) otherwise leaves the old scroll position in place, which can
+  // land the viewport past the new content entirely until scrolled manually.
+  useEffect(() => {
+    contentRef.current?.scrollTo(0, 0);
+  }, [tab, menuView, viewingProfileId]);
 
   // Lets a "you have a new message" email link (?order=<id> or ?inquiry=<id>)
   // drop the user straight into that conversation instead of the home feed.
@@ -184,7 +193,7 @@ export function App() {
         </button>
       </header>
 
-      <main className="content">
+      <main className="content" ref={contentRef}>
         {viewingProfileId ? (
           <PublicProfile userId={viewingProfileId} onBack={() => setViewingProfileId(null)} />
         ) : (
