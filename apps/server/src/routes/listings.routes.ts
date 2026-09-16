@@ -22,6 +22,7 @@ const listingSchema = z
     condition: z.enum(CONDITIONS),
     allowOffers: z.boolean().default(false),
     size: z.string().optional(),
+    skinType: z.string().optional(),
     images: z.array(z.string().min(1)).min(1, 'At least one photo is required.'),
     area: z.string().min(1)
   })
@@ -36,6 +37,10 @@ const listingSchema = z
   .refine((data) => data.category !== 'Clothes' || Boolean(data.size), {
     message: 'Size is required for Clothes listings.',
     path: ['size']
+  })
+  .refine((data) => data.category === 'Clothes' || Boolean(data.skinType), {
+    message: 'Skin type is required for Skincare and Makeup listings.',
+    path: ['skinType']
   });
 
 function withDiscount(listing: { originalPrice: number; price: number }) {
@@ -44,12 +49,13 @@ function withDiscount(listing: { originalPrice: number; price: number }) {
 }
 
 listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
-  const { q, category, size, condition, area, allowOffers, sortBy, sortDir } = req.query as Record<string, string | undefined>;
+  const { q, category, size, skinType, condition, area, allowOffers, sortBy, sortDir } = req.query as Record<string, string | undefined>;
 
   const where: any = { status: 'Active' };
   if (q) where.title = { contains: q, mode: 'insensitive' };
-  if (category) where.category = category;
+  if (category && category !== 'All') where.category = category;
   if (size) where.size = { in: [size, 'One Size'] };
+  if (skinType) where.skinType = skinType;
   if (condition) where.condition = condition;
   if (area) where.area = area;
   if (allowOffers !== undefined) where.allowOffers = allowOffers === 'true';
@@ -62,14 +68,29 @@ listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
   const listings = await prisma.listing.findMany({ where, orderBy, include: { seller: { select: { id: true, fullName: true, username: true, area: true } } } });
 
   let savedIds = new Set<string>();
+  // Personalized ordering: a logged-in buyer's own profile-quiz answers (skin
+  // type, clothing size) bump matching listings toward the top of "For you" —
+  // without ever hiding non-matching ones or bumping a boosted listing down.
+  let personalized = listings;
   if (req.userId) {
-    const saved = await prisma.savedListing.findMany({ where: { userId: req.userId, listingId: { in: listings.map((l) => l.id) } }, select: { listingId: true } });
+    const [saved, me] = await Promise.all([
+      prisma.savedListing.findMany({ where: { userId: req.userId, listingId: { in: listings.map((l) => l.id) } }, select: { listingId: true } }),
+      prisma.user.findUnique({ where: { id: req.userId }, select: { skinType: true, clothingSize: true } })
+    ]);
     savedIds = new Set(saved.map((s) => s.listingId));
+    if (me && (me.skinType || me.clothingSize)) {
+      const matches = (l: (typeof listings)[number]) =>
+        l.category === 'Clothes' ? Boolean(me.clothingSize) && l.size === me.clothingSize : Boolean(me.skinType) && l.skinType === me.skinType;
+      personalized = [...listings].sort((a, b) => {
+        const rank = (l: (typeof listings)[number]) => (l.boosted ? 0 : matches(l) ? 1 : 2);
+        return rank(a) - rank(b);
+      });
+    }
   }
 
   return res.json({
-    listings: listings.map((l) => ({ ...withDiscount(l), savedByMe: savedIds.has(l.id) })),
-    count: listings.length
+    listings: personalized.map((l) => ({ ...withDiscount(l), savedByMe: savedIds.has(l.id) })),
+    count: personalized.length
   });
 });
 
@@ -147,6 +168,7 @@ const listingUpdateSchema = z.object({
   reasonForSelling: z.string().min(1).optional(),
   condition: z.enum(CONDITIONS).optional(),
   size: z.string().optional(),
+  skinType: z.string().optional(),
   area: z.string().min(1).optional(),
   images: z.array(z.string().min(1)).min(1).optional(),
   allowOffers: z.boolean().optional(),
@@ -177,8 +199,12 @@ listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
       error: `For a "${nextCondition === 'NeverUsed' ? 'Never used' : nextCondition}" item, your price needs to be at most ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`
     });
   }
-  if (parsed.data.category === 'Clothes' && !(parsed.data.size ?? listing.size)) {
+  const nextCategory = parsed.data.category ?? listing.category;
+  if (nextCategory === 'Clothes' && !(parsed.data.size ?? listing.size)) {
     return res.status(422).json({ error: 'Size is required for Clothes listings.' });
+  }
+  if (nextCategory !== 'Clothes' && !(parsed.data.skinType ?? listing.skinType)) {
+    return res.status(422).json({ error: 'Skin type is required for Skincare and Makeup listings.' });
   }
 
   const updated = await prisma.listing.update({ where: { id: listing.id }, data: parsed.data });

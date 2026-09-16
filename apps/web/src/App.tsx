@@ -47,6 +47,7 @@ export function App() {
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
   const [hasUnreadChats, setHasUnreadChats] = useState(false);
   const [authPrompt, setAuthPrompt] = useState<{ mode: 'login' | 'signup'; reason?: string } | null>(null);
+  const [showDivaModal, setShowDivaModal] = useState(false);
   const consumedDeepLink = useRef(false);
   const contentRef = useRef<HTMLElement>(null);
 
@@ -95,6 +96,25 @@ export function App() {
     const interval = setInterval(poll, 20000);
     return () => { cancelled = true; clearInterval(interval); };
   }, [user, tab]);
+
+  // Picks up a KYC approval that happened while the member was still on the
+  // pending screen (or just browsing) without needing a manual reload.
+  useEffect(() => {
+    if (!user || user.kycStatus === 'approved') return;
+    const interval = setInterval(() => refresh(), 15000);
+    return () => clearInterval(interval);
+  }, [user?.id, user?.kycStatus, refresh]);
+
+  // One-time celebration the moment a member's KYC flips to approved — tracked
+  // in localStorage per user so it only ever fires once, however she happens
+  // to notice (a reload, or the poll above catching it live).
+  useEffect(() => {
+    if (!user || user.kycStatus !== 'approved' || !user.verifiedFemale) return;
+    const key = `sl_kyc_celebrated_${user.id}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, '1');
+    setShowDivaModal(true);
+  }, [user?.id, user?.kycStatus, user?.verifiedFemale]);
 
   // Reached only via a one-time link emailed to a minor's guardian — no
   // Second Look account involved, so this bypasses auth/loading entirely.
@@ -306,6 +326,25 @@ export function App() {
             </>
           )}
         </div>
+      </div>
+
+      {showDivaModal && <DivaModal onClose={() => setShowDivaModal(false)} />}
+    </div>
+  );
+}
+
+function DivaModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(90,46,61,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div className="plain-card" style={{ margin: '0 24px', maxWidth: 360, textAlign: 'center', padding: '28px 22px' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontSize: 34 }}>👑</div>
+        <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, marginTop: 10 }}>You're verified!</h3>
+        <p className="sub" style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.5 }}>
+          We verified that you are the most beautiful woman we have seen — you are now in Diva!
+        </p>
+        <button className="btn-solid" style={{ marginTop: 16, width: '100%' }} onClick={onClose}>
+          <span className="shine" /><span className="label">Yay, let's go</span>
+        </button>
       </div>
     </div>
   );

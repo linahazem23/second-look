@@ -195,6 +195,35 @@ export async function notifyPasswordReset(params: { recipientEmail: string; reci
 }
 
 /**
+ * Sent once, the moment an admin approves a member's KYC — a real transactional
+ * event, not a repeating notification, so it doesn't go through the debounce map.
+ */
+export async function notifyKycApproved(params: { recipientEmail: string; recipientName: string }) {
+  if (!resend) return;
+
+  const link = `${APP_URL}/`;
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: params.recipientEmail,
+      subject: "You're verified — welcome to the Diva club 💅",
+      html: `
+        <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
+          <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
+          <p style="color: #37202A; font-size: 15px;">Hi ${escapeHtml(params.recipientName)},</p>
+          <p style="color: #37202A; font-size: 15px;">We verified that you are the most beautiful woman we have seen — you are now in Diva! 👑</p>
+          <p style="color: #37202A; font-size: 15px;">Your account is fully verified — go buy, sell, and negotiate freely.</p>
+          <a href="${link}" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">Open Second Look</a>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('Failed to send KYC-approved email', err);
+  }
+}
+
+/**
  * Sent when a real admin replies to a user's customer-support message — not
  * the canned quick-reply bot, which the user already sees instantly in-app.
  */

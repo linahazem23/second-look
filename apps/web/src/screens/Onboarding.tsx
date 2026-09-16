@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { uploadFile } from '../ImageUpload.js';
 
@@ -46,6 +46,157 @@ function DocUploadButton({ label, url, busy, onSelect }: { label: string; url: s
           e.target.value = '';
         }}
       />
+    </div>
+  );
+}
+
+// A live selfie (camera capture + retake/keep) is much harder to fake than a
+// picked photo — falls back to a normal file picker when the camera can't be
+// reached (no camera, permission denied, or an insecure/unsupported context).
+function LiveSelfieCapture({ url, onCaptured }: { url: string | null; onCaptured: (url: string) => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<'idle' | 'live' | 'preview'>('idle');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+  }
+
+  useEffect(() => stopCamera, []);
+
+  async function startCamera() {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      streamRef.current = stream;
+      setMode('live');
+    } catch {
+      setError("Couldn't reach your camera — you can upload a photo instead.");
+    }
+  }
+
+  useEffect(() => {
+    if (mode === 'live' && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [mode]);
+
+  function capture() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    // The live preview is mirrored (like a mirror) — mirror the capture too,
+    // so the saved photo matches what she actually saw of herself.
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      setCapturedBlob(blob);
+      setPreviewUrl(URL.createObjectURL(blob));
+      stopCamera();
+      setMode('preview');
+    }, 'image/jpeg', 0.92);
+  }
+
+  function retake() {
+    setCapturedBlob(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    startCamera();
+  }
+
+  async function keep() {
+    if (!capturedBlob) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const uploadedUrl = await uploadFile(capturedBlob);
+      onCaptured(uploadedUrl);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setCapturedBlob(null);
+      setMode('idle');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleFileFallback(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      onCaptured(await uploadFile(file));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  if (mode === 'live') {
+    return (
+      <div style={{ marginTop: 14 }}>
+        <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', borderRadius: 8, transform: 'scaleX(-1)', background: '#000' }} />
+        <div className="form-row" style={{ marginTop: 8 }}>
+          <button type="button" className="btn-cancel" onClick={() => { stopCamera(); setMode('idle'); }}>Cancel</button>
+          <button type="button" className="btn-solid" onClick={capture}><span className="shine" /><span className="label">Capture</span></button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === 'preview' && previewUrl) {
+    return (
+      <div style={{ marginTop: 14 }}>
+        <img src={previewUrl} alt="Your selfie" style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 8, transform: 'scaleX(-1)' }} />
+        <div className="form-row" style={{ marginTop: 8 }}>
+          <button type="button" className="btn-cancel" disabled={uploading} onClick={retake}>Retake</button>
+          <button type="button" className="btn-solid" disabled={uploading} onClick={keep}>
+            <span className="shine" /><span className="label">{uploading ? 'Saving…' : 'Keep this photo'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button type="button" className="btn-outline" style={{ width: '100%' }} disabled={uploading} onClick={startCamera}>
+        {url ? '✓ Live selfie added — tap to retake' : 'Take a live selfie'}
+      </button>
+      {url && <img src={url} alt="Selfie" style={{ marginTop: 8, width: '100%', maxHeight: 160, objectFit: 'cover', borderRadius: 8 }} />}
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        style={{ background: 'none', border: 'none', color: 'var(--ink-light)', fontSize: 11.5, textDecoration: 'underline', marginTop: 8, padding: 0 }}
+      >
+        or upload a photo instead
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileFallback(file);
+          e.target.value = '';
+        }}
+      />
+      {error && <p className="ob-err">{error}</p>}
     </div>
   );
 }
@@ -101,7 +252,8 @@ export function KycGate({ onDone }: { onDone: () => void }) {
         {!result && (
           <>
             <DocUploadButton label="a photo of your ID" url={idDocumentUrl} busy={uploadingDoc === 'id'} onSelect={(f) => handleUpload('id', f)} />
-            <DocUploadButton label="a selfie" url={selfieUrl} busy={uploadingDoc === 'selfie'} onSelect={(f) => handleUpload('selfie', f)} />
+            <label style={{ display: 'block', marginTop: 14, fontSize: 11.5, color: 'var(--ink-light)' }}>Live selfie</label>
+            <LiveSelfieCapture url={selfieUrl} onCaptured={setSelfieUrl} />
             <p className="lead" style={{ marginTop: 18, fontSize: 12.5 }}>
               A real person on our team reviews every submission — this usually takes a short while.
             </p>

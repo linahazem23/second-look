@@ -4,7 +4,7 @@ import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signAdminToken, requireAdmin, requireRole, type AuthedRequest } from '../lib/auth.js';
 import { applyStrike, applyImmediateBlock, hasActiveEscrowOrder } from '../lib/strikes.js';
 import { grantMembershipDays, MEMBERSHIP_GRANT_DAYS, VIDEO_PROMO_MAX_GRANTS } from '../lib/membership.js';
-import { notifySupportReply } from '../lib/email.js';
+import { notifySupportReply, notifyKycApproved } from '../lib/email.js';
 import { refundPaymobTransaction } from '../lib/paymob.js';
 
 export const adminRouter = Router();
@@ -134,6 +134,7 @@ adminRouter.post('/kyc-pending/:id/approve', async (req, res) => {
     where: { id: req.params.id },
     data: { kycStatus: 'approved', verifiedFemale: true, kycRejectionReason: null }
   });
+  notifyKycApproved({ recipientEmail: user.email, recipientName: user.username ?? user.fullName }).catch(() => {});
   return res.json({ user: { id: user.id, kycStatus: user.kycStatus, verifiedFemale: user.verifiedFemale } });
 });
 

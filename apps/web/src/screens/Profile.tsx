@@ -16,6 +16,7 @@ const CONDITIONS = [
   { value: 'RegularlyUsed', label: 'Regularly used' }
 ];
 const CLOTHES_SIZES = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+const SKIN_TYPES = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
 
 interface MyListing {
   id: string;
@@ -28,6 +29,7 @@ interface MyListing {
   status: string;
   images: string[];
   size?: string | null;
+  skinType?: string | null;
   area: string;
   reasonForSelling: string;
 }
@@ -220,6 +222,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
   const [category, setCategory] = useState(listing.category);
   const [condition, setCondition] = useState(listing.condition);
   const [size, setSize] = useState(listing.size ?? '');
+  const [skinType, setSkinType] = useState(listing.skinType ?? '');
   const [area, setArea] = useState(listing.area);
   const [reasonForSelling, setReasonForSelling] = useState(listing.reasonForSelling ?? '');
   const [price, setPrice] = useState(String(listing.price));
@@ -241,6 +244,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
     if (yours > ceiling) return setError(`For this condition, your price can't be more than ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`);
     if (photoUrls.length === 0) return setError('At least one photo is required.');
     if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
+    if (category !== 'Clothes' && !skinType) return setError('Skin type is required for Skincare and Makeup listings.');
     if (!area) return setError('An area is required.');
 
     setBusy(true);
@@ -251,6 +255,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
         category,
         condition,
         size: category === 'Clothes' ? size : undefined,
+        skinType: category !== 'Clothes' ? skinType : undefined,
         area,
         reasonForSelling,
         price: yours,
@@ -284,6 +289,16 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
           <select value={size} onChange={(e) => setSize(e.target.value)} required>
             <option value="">Select size</option>
             {CLOTHES_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </>
+      )}
+
+      {category !== 'Clothes' && (
+        <>
+          <label>Suitable for which skin type</label>
+          <select value={skinType} onChange={(e) => setSkinType(e.target.value)} required>
+            <option value="">Select skin type</option>
+            {SKIN_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </>
       )}

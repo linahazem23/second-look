@@ -171,6 +171,9 @@ model Listing {
   condition       Condition
   allowOffers     Boolean       @default(false)
   size            String?
+  // Skincare/Makeup only — mirrors User.skinType so listings can be matched
+  // against a buyer's own profile-quiz answer for personalization.
+  skinType        String?
   images          String[]
   status          ListingStatus @default(Active)
   area            String

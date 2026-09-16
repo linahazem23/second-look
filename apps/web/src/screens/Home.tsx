@@ -11,6 +11,7 @@ import { displayName } from '../identity.js';
 import { maxAllowedPrice } from '../pricing.js';
 
 const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
+const BROWSE_CATEGORIES = ['All', ...CATEGORIES] as const;
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },
   { value: 'UsedOnce', label: 'Used once' },
@@ -18,6 +19,7 @@ const CONDITIONS = [
   { value: 'RegularlyUsed', label: 'Regularly used' }
 ];
 const CLOTHES_SIZES = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+const SKIN_TYPES = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
 
 interface Listing {
   id: string;
@@ -29,6 +31,7 @@ interface Listing {
   condition: string;
   allowOffers: boolean;
   size?: string | null;
+  skinType?: string | null;
   area: string;
   reasonForSelling: string;
   images: string[];
@@ -95,13 +98,14 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
     }
   }
 
-  const [category, setCategory] = useState<string>('Skincare');
+  const [category, setCategory] = useState<string>('All');
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [sortDir, setSortDir] = useState<'asc' | 'desc' | ''>('');
   const [conditionFilter, setConditionFilter] = useState('');
   const [areaFilter, setAreaFilter] = useState('');
   const [sizeFilter, setSizeFilter] = useState('');
+  const [skinTypeFilter, setSkinTypeFilter] = useState('');
   const [allowOffersOnly, setAllowOffersOnly] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,7 +113,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   const [showSellForm, setShowSellForm] = useState(false);
   const [showExplore, setShowExplore] = useState(false);
 
-  const activeFilterCount = [sortDir, conditionFilter, areaFilter, sizeFilter].filter(Boolean).length + (allowOffersOnly ? 1 : 0);
+  const activeFilterCount = [sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter].filter(Boolean).length + (allowOffersOnly ? 1 : 0);
 
   async function load() {
     setLoading(true);
@@ -123,7 +127,8 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       }
       if (conditionFilter) params.set('condition', conditionFilter);
       if (areaFilter) params.set('area', areaFilter);
-      if (category === 'Clothes' && sizeFilter) params.set('size', sizeFilter);
+      if ((category === 'Clothes' || category === 'All') && sizeFilter) params.set('size', sizeFilter);
+      if (category !== 'Clothes' && skinTypeFilter) params.set('skinType', skinTypeFilter);
       if (allowOffersOnly) params.set('allowOffers', 'true');
       const res = await api.get(`/api/listings?${params.toString()}`);
       setListings(res.listings);
@@ -137,7 +142,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, sortDir, conditionFilter, areaFilter, sizeFilter, allowOffersOnly]);
+  }, [category, sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter, allowOffersOnly]);
 
   // Polls until Paymob's webhook marks the boost payment paid, then flips the
   // badge on — boosting a non-Plus listing is a real 25 EGP charge, so the
@@ -206,6 +211,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
     setConditionFilter('');
     setAreaFilter('');
     setSizeFilter('');
+    setSkinTypeFilter('');
     setAllowOffersOnly(false);
   }
 
@@ -230,7 +236,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       </div>
 
       <div className="cat-toggle">
-        {CATEGORIES.map((c) => (
+        {BROWSE_CATEGORIES.map((c) => (
           <button key={c} className={category === c ? 'active' : ''} onClick={() => setCategory(c)}>
             {c}
           </button>
@@ -266,6 +272,8 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
           setAreaFilter={setAreaFilter}
           sizeFilter={sizeFilter}
           setSizeFilter={setSizeFilter}
+          skinTypeFilter={skinTypeFilter}
+          setSkinTypeFilter={setSkinTypeFilter}
           allowOffersOnly={allowOffersOnly}
           setAllowOffersOnly={setAllowOffersOnly}
           onClear={clearFilters}
@@ -344,7 +352,9 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                   {item.allowOffers && <span className="match-badge" style={{ marginLeft: 6 }}>Negotiable</span>}
                   {item.boosted && <span className="match-badge" style={{ marginLeft: 6 }}>Boosted</span>}
                   <div className="meta">
-                    {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition} &middot; {item.area}
+                    {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition}
+                    {item.size ? ` · ${item.size}` : ''}
+                    {item.skinType ? ` · ${item.skinType} skin` : ''} &middot; {item.area}
                   </div>
                   {onViewProfile && (
                     <button
@@ -414,6 +424,8 @@ interface FilterSheetProps {
   setAreaFilter: (v: string) => void;
   sizeFilter: string;
   setSizeFilter: (v: string) => void;
+  skinTypeFilter: string;
+  setSkinTypeFilter: (v: string) => void;
   allowOffersOnly: boolean;
   setAllowOffersOnly: (v: boolean) => void;
   onClear: () => void;
@@ -421,7 +433,7 @@ interface FilterSheetProps {
 }
 
 function FilterSheet(props: FilterSheetProps) {
-  const { category, sortDir, setSortDir, conditionFilter, setConditionFilter, areaFilter, setAreaFilter, sizeFilter, setSizeFilter, allowOffersOnly, setAllowOffersOnly, onClear, onClose } = props;
+  const { category, sortDir, setSortDir, conditionFilter, setConditionFilter, areaFilter, setAreaFilter, sizeFilter, setSizeFilter, skinTypeFilter, setSkinTypeFilter, allowOffersOnly, setAllowOffersOnly, onClear, onClose } = props;
 
   return (
     <div className="filter-sheet-backdrop" onClick={onClose}>
@@ -450,12 +462,22 @@ function FilterSheet(props: FilterSheetProps) {
           <LocationAreaField value={areaFilter} onChange={setAreaFilter} allowAny />
         </div>
 
-        {category === 'Clothes' && (
+        {(category === 'Clothes' || category === 'All') && (
           <div className="field-block">
             <label>Size</label>
             <select value={sizeFilter} onChange={(e) => setSizeFilter(e.target.value)}>
               <option value="">Any size</option>
               {CLOTHES_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
+
+        {category !== 'Clothes' && (
+          <div className="field-block">
+            <label>Skin type</label>
+            <select value={skinTypeFilter} onChange={(e) => setSkinTypeFilter(e.target.value)}>
+              <option value="">Any skin type</option>
+              {SKIN_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
         )}
@@ -597,7 +619,8 @@ function ListingDetailModal({ item, isOwner, buying, messaging, boosting, onClos
             </div>
             <div className="meta" style={{ marginTop: 8 }}>
               {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition}
-              {item.size ? ` · Size ${item.size}` : ''} &middot; {item.area}
+              {item.size ? ` · Size ${item.size}` : ''}
+              {item.skinType ? ` · ${item.skinType} skin` : ''} &middot; {item.area}
             </div>
             {onViewProfile && (
               <button
@@ -658,6 +681,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
   const [condition, setCondition] = useState('NeverUsed');
   const [allowOffers, setAllowOffers] = useState(false);
   const [size, setSize] = useState('');
+  const [skinType, setSkinType] = useState('');
   const [area, setArea] = useState('');
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -677,6 +701,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
     if (yours >= original) return setError('Your price must be strictly lower than the original price.');
     if (yours > ceiling) return setError(`For this condition, your price can't be more than ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`);
     if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
+    if (category !== 'Clothes' && !skinType) return setError('Skin type is required for Skincare and Makeup listings.');
     if (!area) return setError('We need your area to list this item — allow location access or pick one.');
 
     setBusy(true);
@@ -690,6 +715,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
         condition,
         allowOffers,
         size: category === 'Clothes' ? size : undefined,
+        skinType: category !== 'Clothes' ? skinType : undefined,
         images: photoUrls,
         area
       });
@@ -717,6 +743,16 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
           <select value={size} onChange={(e) => setSize(e.target.value)} required>
             <option value="">Select size</option>
             {CLOTHES_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </>
+      )}
+
+      {category !== 'Clothes' && (
+        <>
+          <label>Suitable for which skin type</label>
+          <select value={skinType} onChange={(e) => setSkinType(e.target.value)} required>
+            <option value="">Select skin type</option>
+            {SKIN_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </>
       )}
