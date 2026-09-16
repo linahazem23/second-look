@@ -12,6 +12,8 @@ interface AdminUserRow {
   blockedUntil: string | null;
   completedSalesCount: number;
   flagCount: number;
+  phoneNumber: string | null;
+  phoneVerified: boolean;
   createdAt: string;
 }
 
@@ -50,12 +52,13 @@ export function Users() {
       {error && <p className="login-err">{error}</p>}
       <div className="panel">
         <table>
-          <thead><tr><th>Name</th><th>Joined</th><th>Completed sales</th><th>Flags</th><th>Standing</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Completed sales</th><th>Flags</th><th>Standing</th><th></th></tr></thead>
           <tbody>
-            {users.length === 0 && !error && <tr className="empty-row"><td colSpan={6}>No users yet</td></tr>}
+            {users.length === 0 && !error && <tr className="empty-row"><td colSpan={7}>No users yet</td></tr>}
             {users.map((u) => (
               <tr key={u.id}>
                 <td>{u.fullName}<div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{u.email}</div></td>
+                <td>{u.phoneNumber ?? '—'}{u.phoneNumber && (u.phoneVerified ? <Pill value="Verified" /> : <Pill value="Unverified" />)}</td>
                 <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                 <td>{u.completedSalesCount}</td>
                 <td>{u.flagCount}</td>

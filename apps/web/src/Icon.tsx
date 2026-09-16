@@ -2,6 +2,7 @@ const PATHS: Record<string, string> = {
   flask: '<path d="M9 3h6"/><path d="M10 3v6l-5.5 9a2 2 0 0 0 1.7 3h11.6a2 2 0 0 0 1.7-3L14 9V3"/>',
   lipstick: '<path d="M7 14h10v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6Z"/><path d="M8 14 9 4h6l1 10"/>',
   dress: '<path d="M9 3h6l1 4-3 2 4 12H7l4-12-3-2 1-4Z"/>',
+  comb: '<path d="M4 4h16v4H4z"/><path d="M6 8v12M9.5 8v12M13 8v12M16.5 8v12M20 8v12"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
   arrowLeft: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
   check: '<polyline points="20 6 9 17 4 12"/>',
@@ -29,5 +30,6 @@ export function Icon({ name, size = 20 }: { name: keyof typeof PATHS; size?: num
 export function categoryIcon(category: string) {
   if (category === 'Skincare') return 'flask';
   if (category === 'Makeup') return 'lipstick';
+  if (category === 'Haircare') return 'comb';
   return 'dress';
 }

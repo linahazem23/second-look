@@ -21,6 +21,7 @@ export function Ads() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [creativeUrl, setCreativeUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   const [busy, setBusy] = useState(false);
 
   function load() {
@@ -33,9 +34,9 @@ export function Ads() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post('/api/admin/ads', { brand, slotType, startDate, endDate, creativeUrl: creativeUrl || undefined });
+      await api.post('/api/admin/ads', { brand, slotType, startDate, endDate, creativeUrl: creativeUrl || undefined, linkUrl: linkUrl || undefined });
       setShowForm(false);
-      setBrand(''); setStartDate(''); setEndDate(''); setCreativeUrl('');
+      setBrand(''); setStartDate(''); setEndDate(''); setCreativeUrl(''); setLinkUrl('');
       load();
     } catch (err) {
       setError(friendlyError(err));
@@ -63,6 +64,7 @@ export function Ads() {
           <label className="field">Start date<input type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label>
           <label className="field">End date<input type="date" required value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
           <label className="field">Creative URL (optional)<input type="text" value={creativeUrl} onChange={(e) => setCreativeUrl(e.target.value)} /></label>
+          <label className="field">Link URL (optional — where tapping the card leads)<input type="text" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} /></label>
           <button className="btn solid" type="submit" disabled={busy} style={{ marginTop: 12 }}>{busy ? 'Saving…' : 'Save placement'}</button>
         </form>
       )}

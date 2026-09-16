@@ -8,7 +8,7 @@ import { GrowthPanel } from './GrowthPanel.js';
 import { LocationAreaField } from '../LocationArea.js';
 import { maxAllowedPrice } from '../pricing.js';
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },
   { value: 'UsedOnce', label: 'Used once' },
@@ -16,7 +16,8 @@ const CONDITIONS = [
   { value: 'RegularlyUsed', label: 'Regularly used' }
 ];
 const CLOTHES_SIZES = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
-const SKIN_TYPES = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
+const SKIN_TYPES = ['All', 'Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
+const HAIR_TYPES = ['All', 'Straight', 'Wavy', 'Curly', 'Coily'];
 
 interface MyListing {
   id: string;
@@ -30,6 +31,7 @@ interface MyListing {
   images: string[];
   size?: string | null;
   skinType?: string | null;
+  hairType?: string | null;
   area: string;
   reasonForSelling: string;
 }
@@ -92,6 +94,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
       </div>
 
       <UsernameCard username={user.username} onSaved={refresh} />
+      <PhoneCard phoneNumber={user.phoneNumber} phoneVerified={user.phoneVerified} onSaved={refresh} />
 
       <GrowthPanel />
 
@@ -207,6 +210,88 @@ function UsernameCard({ username, onSaved }: { username: string | null; onSaved:
   );
 }
 
+function PhoneCard({ phoneNumber, phoneVerified, onSaved }: { phoneNumber: string | null; phoneVerified: boolean; onSaved: () => void }) {
+  const [phone, setPhone] = useState(phoneNumber ?? '');
+  const [code, setCode] = useState('');
+  const [stage, setStage] = useState<'idle' | 'code-sent'>('idle');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  async function requestCode() {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      await api.post('/api/auth/phone/request-otp', { phoneNumber: phone.trim() });
+      setStage('code-sent');
+      setInfo('Code sent — check your texts.');
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyCode() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post('/api/auth/phone/verify-otp', { code: code.trim() });
+      setStage('idle');
+      setCode('');
+      onSaved();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="plain-card">
+      <h3>Phone number {phoneVerified && <span className="match-badge" style={{ marginLeft: 6 }}>Verified ✓</span>}</h3>
+      <div className="sub">
+        A verified number is the fastest way for us to reach you if anything urgent comes up with an order.
+      </div>
+      <input
+        style={{ marginTop: 10 }}
+        type="tel"
+        placeholder="01xxxxxxxxx"
+        value={phone}
+        onChange={(e) => { setPhone(e.target.value); setStage('idle'); }}
+      />
+      {error && <p className="field-error">{error}</p>}
+      {info && !error && <p className="discount-hint">{info}</p>}
+
+      {stage === 'code-sent' && (
+        <>
+          <label style={{ marginTop: 10 }}>Enter the code</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="6-digit code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </>
+      )}
+
+      <div className="row" style={{ marginTop: 8 }}>
+        {stage === 'code-sent' ? (
+          <button className="btn-solid" disabled={busy || !code.trim()} onClick={verifyCode}>
+            <span className="shine" /><span className="label">{busy ? 'Verifying…' : 'Verify'}</span>
+          </button>
+        ) : (
+          <button className="btn-outline" disabled={busy || !phone.trim()} onClick={requestCode}>
+            {busy ? 'Sending…' : phoneVerified && phone.trim() === phoneNumber ? 'Send new code' : 'Send code'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 async function updateStatus(id: string, status: string, reload: () => void, setError: (msg: string | null) => void) {
   try {
     await api.patch(`/api/listings/${id}`, { status });
@@ -223,6 +308,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
   const [condition, setCondition] = useState(listing.condition);
   const [size, setSize] = useState(listing.size ?? '');
   const [skinType, setSkinType] = useState(listing.skinType ?? '');
+  const [hairType, setHairType] = useState(listing.hairType ?? '');
   const [area, setArea] = useState(listing.area);
   const [reasonForSelling, setReasonForSelling] = useState(listing.reasonForSelling ?? '');
   const [price, setPrice] = useState(String(listing.price));
@@ -244,7 +330,8 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
     if (yours > ceiling) return setError(`For this condition, your price can't be more than ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`);
     if (photoUrls.length === 0) return setError('At least one photo is required.');
     if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
-    if (category !== 'Clothes' && !skinType) return setError('Skin type is required for Skincare and Makeup listings.');
+    if (category === 'Skincare' && !skinType) return setError('Skin type is required for Skincare listings.');
+    if (category === 'Haircare' && !hairType) return setError('Hair type is required for Haircare listings.');
     if (!area) return setError('An area is required.');
 
     setBusy(true);
@@ -255,7 +342,8 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
         category,
         condition,
         size: category === 'Clothes' ? size : undefined,
-        skinType: category !== 'Clothes' ? skinType : undefined,
+        skinType: category === 'Skincare' ? skinType : undefined,
+        hairType: category === 'Haircare' ? hairType : undefined,
         area,
         reasonForSelling,
         price: yours,
@@ -293,12 +381,22 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
         </>
       )}
 
-      {category !== 'Clothes' && (
+      {category === 'Skincare' && (
         <>
           <label>Suitable for which skin type</label>
           <select value={skinType} onChange={(e) => setSkinType(e.target.value)} required>
             <option value="">Select skin type</option>
             {SKIN_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </>
+      )}
+
+      {category === 'Haircare' && (
+        <>
+          <label>Suitable for which hair type</label>
+          <select value={hairType} onChange={(e) => setHairType(e.target.value)} required>
+            <option value="">Select hair type</option>
+            {HAIR_TYPES.map((h) => <option key={h} value={h}>{h}</option>)}
           </select>
         </>
       )}

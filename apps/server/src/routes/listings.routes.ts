@@ -9,7 +9,7 @@ import { maxAllowedPrice } from '../lib/pricing.js';
 
 export const listingsRouter = Router();
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
 const CONDITIONS = ['NeverUsed', 'UsedOnce', 'UsedAFewTimes', 'RegularlyUsed'] as const;
 
 const listingSchema = z
@@ -23,6 +23,7 @@ const listingSchema = z
     allowOffers: z.boolean().default(false),
     size: z.string().optional(),
     skinType: z.string().optional(),
+    hairType: z.string().optional(),
     images: z.array(z.string().min(1)).min(1, 'At least one photo is required.'),
     area: z.string().min(1)
   })
@@ -38,9 +39,13 @@ const listingSchema = z
     message: 'Size is required for Clothes listings.',
     path: ['size']
   })
-  .refine((data) => data.category === 'Clothes' || Boolean(data.skinType), {
-    message: 'Skin type is required for Skincare and Makeup listings.',
+  .refine((data) => data.category !== 'Skincare' || Boolean(data.skinType), {
+    message: 'Skin type is required for Skincare listings.',
     path: ['skinType']
+  })
+  .refine((data) => data.category !== 'Haircare' || Boolean(data.hairType), {
+    message: 'Hair type is required for Haircare listings.',
+    path: ['hairType']
   });
 
 function withDiscount(listing: { originalPrice: number; price: number }) {
@@ -49,13 +54,16 @@ function withDiscount(listing: { originalPrice: number; price: number }) {
 }
 
 listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
-  const { q, category, size, skinType, condition, area, allowOffers, sortBy, sortDir } = req.query as Record<string, string | undefined>;
+  const { q, category, size, skinType, hairType, condition, area, allowOffers, sortBy, sortDir } = req.query as Record<string, string | undefined>;
 
   const where: any = { status: 'Active' };
   if (q) where.title = { contains: q, mode: 'insensitive' };
   if (category && category !== 'All') where.category = category;
   if (size) where.size = { in: [size, 'One Size'] };
-  if (skinType) where.skinType = skinType;
+  // "All" on a listing means suitable for everyone, so it should surface
+  // under any specific skin/hair type filter too, not just an exact match.
+  if (skinType) where.skinType = { in: [skinType, 'All'] };
+  if (hairType) where.hairType = { in: [hairType, 'All'] };
   if (condition) where.condition = condition;
   if (area) where.area = area;
   if (allowOffers !== undefined) where.allowOffers = allowOffers === 'true';
@@ -69,18 +77,23 @@ listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
 
   let savedIds = new Set<string>();
   // Personalized ordering: a logged-in buyer's own profile-quiz answers (skin
-  // type, clothing size) bump matching listings toward the top of "For you" —
-  // without ever hiding non-matching ones or bumping a boosted listing down.
+  // type, hair type, clothing size) bump matching listings toward the top of
+  // "For you" — without ever hiding non-matching ones or bumping a boosted
+  // listing down. A listing marked "All" always counts as a match.
   let personalized = listings;
   if (req.userId) {
     const [saved, me] = await Promise.all([
       prisma.savedListing.findMany({ where: { userId: req.userId, listingId: { in: listings.map((l) => l.id) } }, select: { listingId: true } }),
-      prisma.user.findUnique({ where: { id: req.userId }, select: { skinType: true, clothingSize: true } })
+      prisma.user.findUnique({ where: { id: req.userId }, select: { skinType: true, hairType: true, clothingSize: true } })
     ]);
     savedIds = new Set(saved.map((s) => s.listingId));
-    if (me && (me.skinType || me.clothingSize)) {
-      const matches = (l: (typeof listings)[number]) =>
-        l.category === 'Clothes' ? Boolean(me.clothingSize) && l.size === me.clothingSize : Boolean(me.skinType) && l.skinType === me.skinType;
+    if (me && (me.skinType || me.hairType || me.clothingSize)) {
+      const matches = (l: (typeof listings)[number]) => {
+        if (l.category === 'Clothes') return Boolean(me.clothingSize) && l.size === me.clothingSize;
+        if (l.category === 'Haircare') return Boolean(me.hairType) && (l.hairType === me.hairType || l.hairType === 'All');
+        if (l.category === 'Skincare') return Boolean(me.skinType) && (l.skinType === me.skinType || l.skinType === 'All');
+        return false;
+      };
       personalized = [...listings].sort((a, b) => {
         const rank = (l: (typeof listings)[number]) => (l.boosted ? 0 : matches(l) ? 1 : 2);
         return rank(a) - rank(b);
@@ -169,6 +182,7 @@ const listingUpdateSchema = z.object({
   condition: z.enum(CONDITIONS).optional(),
   size: z.string().optional(),
   skinType: z.string().optional(),
+  hairType: z.string().optional(),
   area: z.string().min(1).optional(),
   images: z.array(z.string().min(1)).min(1).optional(),
   allowOffers: z.boolean().optional(),
@@ -203,8 +217,11 @@ listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
   if (nextCategory === 'Clothes' && !(parsed.data.size ?? listing.size)) {
     return res.status(422).json({ error: 'Size is required for Clothes listings.' });
   }
-  if (nextCategory !== 'Clothes' && !(parsed.data.skinType ?? listing.skinType)) {
-    return res.status(422).json({ error: 'Skin type is required for Skincare and Makeup listings.' });
+  if (nextCategory === 'Skincare' && !(parsed.data.skinType ?? listing.skinType)) {
+    return res.status(422).json({ error: 'Skin type is required for Skincare listings.' });
+  }
+  if (nextCategory === 'Haircare' && !(parsed.data.hairType ?? listing.hairType)) {
+    return res.status(422).json({ error: 'Hair type is required for Haircare listings.' });
   }
 
   const updated = await prisma.listing.update({ where: { id: listing.id }, data: parsed.data });

@@ -9,7 +9,7 @@ import { createPaymobCheckout } from '../lib/paymob.js';
 
 export const demandRouter = Router();
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
 
 // Comments must not become a back-channel to move the deal off-platform.
 const CONTACT_INFO_PATTERN = /(\+?20|0)?1[0125]\d{8}|whatsapp|instagram|\bfb\.com\b|@[a-z0-9_]{3,}/i;

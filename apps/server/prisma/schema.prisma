@@ -12,6 +12,7 @@ enum Category {
   Skincare
   Makeup
   Clothes
+  Haircare
 }
 
 enum Condition {
@@ -87,6 +88,13 @@ model User {
   // the moment it's redeemed or replaced by a newer request.
   passwordResetToken      String?   @unique
   passwordResetExpiresAt  DateTime?
+  // A verified phone number is Second Look's fastest channel to reach a member
+  // directly for anything urgent (safety, disputes) — separate from the
+  // guardian's phone, which is a different person's number entirely.
+  phoneNumber             String?   @unique
+  phoneVerified           Boolean   @default(false)
+  phoneOtpCode            String?
+  phoneOtpExpiresAt       DateTime?
   status              UserStatus    @default(Good)
   buyOnlyUntil        DateTime?
   blockedUntil        DateTime?
@@ -171,9 +179,12 @@ model Listing {
   condition       Condition
   allowOffers     Boolean       @default(false)
   size            String?
-  // Skincare/Makeup only — mirrors User.skinType so listings can be matched
-  // against a buyer's own profile-quiz answer for personalization.
+  // Skincare only — mirrors User.skinType so listings can be matched against
+  // a buyer's own profile-quiz answer for personalization. "All" means
+  // suitable for every skin type.
   skinType        String?
+  // Haircare only — same idea as skinType, matched against User.hairType.
+  hairType        String?
   images          String[]
   status          ListingStatus @default(Active)
   area            String
@@ -357,6 +368,9 @@ model Ad {
   slotType   String
   brand      String
   creativeUrl String?
+  // Where tapping the card sends the buyer — the brand's site, a WhatsApp
+  // link, whatever they gave us. Falls back to nothing (non-clickable) if unset.
+  linkUrl    String?
   startDate  DateTime
   endDate    DateTime
   status     String   @default("scheduled")

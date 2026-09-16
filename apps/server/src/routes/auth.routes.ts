@@ -5,6 +5,7 @@ import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
 import { notifyGuardianConsentRequest, notifyPasswordReset } from '../lib/email.js';
+import { sendSms } from '../lib/sms.js';
 import { upload, uploadToStorage } from '../lib/upload.js';
 
 export const authRouter = Router();
@@ -224,6 +225,61 @@ authRouter.patch('/username', requireAuth, async (req: AuthedRequest, res) => {
 
   const user = await prisma.user.update({ where: { id: req.userId }, data: { username: parsed.data.username } });
   return res.json({ username: user.username });
+});
+
+const PHONE_PATTERN = /^\+?[0-9]{8,15}$/;
+const OTP_VALID_MS = 5 * 60 * 1000;
+
+// A verified phone is Second Look's fastest channel to reach a member directly
+// (safety escalations, urgent disputes) — separate from a guardian's phone,
+// which belongs to someone else entirely. Re-requesting overwrites any
+// previous unverified attempt, so switching numbers mid-flow just works.
+authRouter.post('/phone/request-otp', requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = z.object({ phoneNumber: z.string().regex(PHONE_PATTERN, 'Enter a valid phone number.') }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const taken = await prisma.user.findFirst({ where: { phoneNumber: parsed.data.phoneNumber, id: { not: req.userId } } });
+  if (taken) return res.status(409).json({ error: 'That phone number is already registered to another account.' });
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  await prisma.user.update({
+    where: { id: req.userId },
+    data: {
+      phoneNumber: parsed.data.phoneNumber,
+      phoneVerified: false,
+      phoneOtpCode: code,
+      phoneOtpExpiresAt: new Date(Date.now() + OTP_VALID_MS)
+    }
+  });
+
+  await sendSms(parsed.data.phoneNumber, `Your Second Look verification code is ${code}. It expires in 5 minutes.`).catch((err) => {
+    console.error('Failed to send phone verification SMS', err);
+  });
+
+  return res.json({ ok: true });
+});
+
+authRouter.post('/phone/verify-otp', requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = z.object({ code: z.string().min(1) }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const user = await prisma.user.findUnique({ where: { id: req.userId } });
+  if (!user?.phoneOtpCode || !user.phoneOtpExpiresAt) {
+    return res.status(409).json({ error: 'Request a code first.' });
+  }
+  if (user.phoneOtpExpiresAt < new Date()) {
+    return res.status(400).json({ error: 'That code has expired — request a new one.' });
+  }
+  if (user.phoneOtpCode !== parsed.data.code.trim()) {
+    return res.status(400).json({ error: 'Incorrect code.' });
+  }
+
+  await prisma.user.update({
+    where: { id: req.userId },
+    data: { phoneVerified: true, phoneOtpCode: null, phoneOtpExpiresAt: null }
+  });
+
+  return res.json({ ok: true, phoneNumber: user.phoneNumber });
 });
 
 const profileQuizSchema = z.object({

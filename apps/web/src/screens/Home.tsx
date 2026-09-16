@@ -10,7 +10,7 @@ import { Explore } from './Explore.js';
 import { displayName } from '../identity.js';
 import { maxAllowedPrice } from '../pricing.js';
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
 const BROWSE_CATEGORIES = ['All', ...CATEGORIES] as const;
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },
@@ -19,7 +19,17 @@ const CONDITIONS = [
   { value: 'RegularlyUsed', label: 'Regularly used' }
 ];
 const CLOTHES_SIZES = ['One Size', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
-const SKIN_TYPES = ['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
+// "All" means suitable for every skin/hair type — always shown first so it
+// reads as the default-friendly option, not just another item in the list.
+const SKIN_TYPES = ['All', 'Oily', 'Dry', 'Combination', 'Normal', 'Sensitive'];
+const HAIR_TYPES = ['All', 'Straight', 'Wavy', 'Curly', 'Coily'];
+
+interface ActiveAd {
+  id: string;
+  brand: string;
+  creativeUrl: string | null;
+  linkUrl: string | null;
+}
 
 interface Listing {
   id: string;
@@ -32,6 +42,7 @@ interface Listing {
   allowOffers: boolean;
   size?: string | null;
   skinType?: string | null;
+  hairType?: string | null;
   area: string;
   reasonForSelling: string;
   images: string[];
@@ -75,14 +86,20 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   const [areaFilter, setAreaFilter] = useState('');
   const [sizeFilter, setSizeFilter] = useState('');
   const [skinTypeFilter, setSkinTypeFilter] = useState('');
+  const [hairTypeFilter, setHairTypeFilter] = useState('');
   const [allowOffersOnly, setAllowOffersOnly] = useState(false);
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSellForm, setShowSellForm] = useState(false);
   const [showExplore, setShowExplore] = useState(false);
+  const [activeAd, setActiveAd] = useState<ActiveAd | null>(null);
 
-  const activeFilterCount = [sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter].filter(Boolean).length + (allowOffersOnly ? 1 : 0);
+  useEffect(() => {
+    api.get('/api/ads/active?slotType=in_feed_sponsored_card').then((res) => setActiveAd(res.ad)).catch(() => {});
+  }, []);
+
+  const activeFilterCount = [sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter, hairTypeFilter].filter(Boolean).length + (allowOffersOnly ? 1 : 0);
 
   async function load() {
     setLoading(true);
@@ -97,7 +114,8 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       if (conditionFilter) params.set('condition', conditionFilter);
       if (areaFilter) params.set('area', areaFilter);
       if ((category === 'Clothes' || category === 'All') && sizeFilter) params.set('size', sizeFilter);
-      if (category !== 'Clothes' && skinTypeFilter) params.set('skinType', skinTypeFilter);
+      if ((category === 'Skincare' || category === 'All') && skinTypeFilter) params.set('skinType', skinTypeFilter);
+      if ((category === 'Haircare' || category === 'All') && hairTypeFilter) params.set('hairType', hairTypeFilter);
       if (allowOffersOnly) params.set('allowOffers', 'true');
       const res = await api.get(`/api/listings?${params.toString()}`);
       setListings(res.listings);
@@ -111,7 +129,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter, allowOffersOnly]);
+  }, [category, sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter, hairTypeFilter, allowOffersOnly]);
 
   // Polls until Paymob's webhook marks the boost payment paid, then flips the
   // badge on — boosting a non-Plus listing is a real 25 EGP charge, so the
@@ -181,6 +199,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
     setAreaFilter('');
     setSizeFilter('');
     setSkinTypeFilter('');
+    setHairTypeFilter('');
     setAllowOffersOnly(false);
   }
 
@@ -201,7 +220,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       <p className="home-greeting">Hiii Bestie</p>
       <div className="section-head">
         <h1>For you</h1>
-        <p>Skincare, makeup, and clothes from verified sellers</p>
+        <p>Skincare, makeup, haircare, and clothes from verified sellers</p>
       </div>
 
       <div className="cat-toggle">
@@ -243,6 +262,8 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
           setSizeFilter={setSizeFilter}
           skinTypeFilter={skinTypeFilter}
           setSkinTypeFilter={setSkinTypeFilter}
+          hairTypeFilter={hairTypeFilter}
+          setHairTypeFilter={setHairTypeFilter}
           allowOffersOnly={allowOffersOnly}
           setAllowOffersOnly={setAllowOffersOnly}
           onClear={clearFilters}
@@ -295,8 +316,10 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
         <>
           <div className="result-count">{listings.length} result{listings.length === 1 ? '' : 's'}</div>
           <div className="grid">
-            {listings.map((item) => (
-              <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`} onClick={() => setViewingItem(item)} style={{ cursor: 'pointer' }}>
+            {listings.map((item, idx) => (
+              <React.Fragment key={item.id}>
+                {idx === 2 && <AdCard ad={activeAd} />}
+              <div className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`} onClick={() => setViewingItem(item)} style={{ cursor: 'pointer' }}>
                 <div className="thumb">
                   {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={24} />}
                 </div>
@@ -312,7 +335,8 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                   <div className="meta">
                     {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition}
                     {item.size ? ` · ${item.size}` : ''}
-                    {item.skinType ? ` · ${item.skinType} skin` : ''} &middot; {item.area}
+                    {item.skinType ? ` · ${item.skinType} skin` : ''}
+                    {item.hairType ? ` · ${item.hairType} hair` : ''} &middot; {item.area}
                   </div>
                   {onViewProfile && (
                     <button
@@ -354,11 +378,28 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                   </div>
                 </div>
               </div>
+              </React.Fragment>
             ))}
+            {listings.length < 3 && <AdCard ad={activeAd} />}
           </div>
         </>
       )}
     </>
+  );
+}
+
+function AdCard({ ad }: { ad: ActiveAd | null }) {
+  const href = ad?.linkUrl ?? 'mailto:ads@trysecondlook.app?subject=Advertise%20on%20Second%20Look';
+  return (
+    <a href={href} target={ad?.linkUrl ? '_blank' : undefined} rel="noreferrer" className="listing-card arch ad-card">
+      <div className="thumb">
+        {ad?.creativeUrl ? <img src={ad.creativeUrl} alt={ad.brand} /> : <Icon name="star" size={24} />}
+      </div>
+      <div className="info">
+        <div className="name">{ad ? ad.brand : 'Advertise here'}</div>
+        <div className="meta">{ad ? 'Sponsored' : 'Reach thousands of verified shoppers — get in touch'}</div>
+      </div>
+    </a>
   );
 }
 
@@ -374,6 +415,8 @@ interface FilterSheetProps {
   setSizeFilter: (v: string) => void;
   skinTypeFilter: string;
   setSkinTypeFilter: (v: string) => void;
+  hairTypeFilter: string;
+  setHairTypeFilter: (v: string) => void;
   allowOffersOnly: boolean;
   setAllowOffersOnly: (v: boolean) => void;
   onClear: () => void;
@@ -381,7 +424,7 @@ interface FilterSheetProps {
 }
 
 function FilterSheet(props: FilterSheetProps) {
-  const { category, sortDir, setSortDir, conditionFilter, setConditionFilter, areaFilter, setAreaFilter, sizeFilter, setSizeFilter, skinTypeFilter, setSkinTypeFilter, allowOffersOnly, setAllowOffersOnly, onClear, onClose } = props;
+  const { category, sortDir, setSortDir, conditionFilter, setConditionFilter, areaFilter, setAreaFilter, sizeFilter, setSizeFilter, skinTypeFilter, setSkinTypeFilter, hairTypeFilter, setHairTypeFilter, allowOffersOnly, setAllowOffersOnly, onClear, onClose } = props;
 
   return (
     <div className="filter-sheet-backdrop" onClick={onClose}>
@@ -420,12 +463,22 @@ function FilterSheet(props: FilterSheetProps) {
           </div>
         )}
 
-        {category !== 'Clothes' && (
+        {(category === 'Skincare' || category === 'All') && (
           <div className="field-block">
             <label>Skin type</label>
             <select value={skinTypeFilter} onChange={(e) => setSkinTypeFilter(e.target.value)}>
               <option value="">Any skin type</option>
               {SKIN_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
+
+        {(category === 'Haircare' || category === 'All') && (
+          <div className="field-block">
+            <label>Hair type</label>
+            <select value={hairTypeFilter} onChange={(e) => setHairTypeFilter(e.target.value)}>
+              <option value="">Any hair type</option>
+              {HAIR_TYPES.map((h) => <option key={h} value={h}>{h}</option>)}
             </select>
           </div>
         )}
@@ -526,7 +579,8 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
             <div className="meta" style={{ marginTop: 8 }}>
               {CONDITIONS.find((c) => c.value === item.condition)?.label ?? item.condition}
               {item.size ? ` · Size ${item.size}` : ''}
-              {item.skinType ? ` · ${item.skinType} skin` : ''} &middot; {item.area}
+              {item.skinType ? ` · ${item.skinType} skin` : ''}
+              {item.hairType ? ` · ${item.hairType} hair` : ''} &middot; {item.area}
             </div>
             {onViewProfile && (
               <button
@@ -583,6 +637,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
   const [allowOffers, setAllowOffers] = useState(false);
   const [size, setSize] = useState('');
   const [skinType, setSkinType] = useState('');
+  const [hairType, setHairType] = useState('');
   const [area, setArea] = useState('');
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -602,7 +657,8 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
     if (yours >= original) return setError('Your price must be strictly lower than the original price.');
     if (yours > ceiling) return setError(`For this condition, your price can't be more than ${Math.floor(ceiling)} EGP — you're welcome to price it lower.`);
     if (category === 'Clothes' && !size) return setError('Size is required for Clothes listings.');
-    if (category !== 'Clothes' && !skinType) return setError('Skin type is required for Skincare and Makeup listings.');
+    if (category === 'Skincare' && !skinType) return setError('Skin type is required for Skincare listings.');
+    if (category === 'Haircare' && !hairType) return setError('Hair type is required for Haircare listings.');
     if (!area) return setError('We need your area to list this item — allow location access or pick one.');
 
     setBusy(true);
@@ -616,7 +672,8 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
         condition,
         allowOffers,
         size: category === 'Clothes' ? size : undefined,
-        skinType: category !== 'Clothes' ? skinType : undefined,
+        skinType: category === 'Skincare' ? skinType : undefined,
+        hairType: category === 'Haircare' ? hairType : undefined,
         images: photoUrls,
         area
       });
@@ -648,12 +705,22 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
         </>
       )}
 
-      {category !== 'Clothes' && (
+      {category === 'Skincare' && (
         <>
           <label>Suitable for which skin type</label>
           <select value={skinType} onChange={(e) => setSkinType(e.target.value)} required>
             <option value="">Select skin type</option>
             {SKIN_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </>
+      )}
+
+      {category === 'Haircare' && (
+        <>
+          <label>Suitable for which hair type</label>
+          <select value={hairType} onChange={(e) => setHairType(e.target.value)} required>
+            <option value="">Select hair type</option>
+            {HAIR_TYPES.map((h) => <option key={h} value={h}>{h}</option>)}
           </select>
         </>
       )}

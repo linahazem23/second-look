@@ -50,8 +50,8 @@ describe('Second Look validation rules', () => {
     expect(invalidListing.price >= invalidListing.originalPrice).toBe(true);
   });
 
-  it('constrains category to the approved three options', () => {
+  it('constrains category to the approved options', () => {
     const category = 'Skincare';
-    expect(['Skincare', 'Makeup', 'Clothes']).toContain(category);
+    expect(['Skincare', 'Makeup', 'Clothes', 'Haircare']).toContain(category);
   });
 });

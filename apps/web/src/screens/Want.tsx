@@ -4,7 +4,7 @@ import { useAuth } from '../AuthContext.js';
 import { Icon } from '../Icon.js';
 import { LocationAreaField } from '../LocationArea.js';
 
-const CATEGORIES = ['Skincare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Makeup', 'Clothes', 'Haircare'] as const;
 
 interface WantRequest {
   id: string;

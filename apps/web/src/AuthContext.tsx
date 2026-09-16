@@ -7,6 +7,8 @@ export interface CurrentUser {
   fullName: string;
   username: string | null;
   area: string;
+  phoneNumber: string | null;
+  phoneVerified: boolean;
   verifiedFemale: boolean;
   kycStatus: string;
   status: string;

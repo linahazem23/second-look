@@ -114,6 +114,8 @@ adminRouter.get('/users', async (req, res) => {
       blockedUntil: u.blockedUntil,
       completedSalesCount: u.completedSalesCount,
       flagCount: u.flagCount,
+      phoneNumber: u.phoneNumber,
+      phoneVerified: u.phoneVerified,
       createdAt: u.createdAt
     }))
   });
@@ -598,6 +600,7 @@ const adSchema = z.object({
   slotType: z.enum(['top_banner', 'in_feed_sponsored_card']),
   brand: z.string().min(1),
   creativeUrl: z.string().optional(),
+  linkUrl: z.string().url().optional(),
   startDate: z.coerce.date(),
   endDate: z.coerce.date()
 });
