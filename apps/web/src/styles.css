@@ -31,16 +31,27 @@ input, select, textarea { font-family: inherit; }
 #phone {
   max-width: 430px;
   margin: 0 auto;
-  min-height: 100vh;
+  /* A locked (not min-) height is what makes main.content's own scrollbar
+     actually engage below, instead of the whole page growing taller than the
+     viewport and scrolling as one — which is what was dragging the bottom
+     nav out of view. 100vh first for browsers without dvh support. */
+  height: 100vh;
+  height: 100dvh;
   background: var(--blush);
   position: relative;
   display: flex;
   flex-direction: column;
   box-shadow: 0 0 40px rgba(90, 46, 61, 0.12);
 }
-@media (min-width: 431px) {
+/* The floating-card treatment (padding around a phone-shaped card) is only for
+   a real desktop/tablet window — anything narrower than that is an actual
+   phone and must render full-bleed, edge to edge, with no wasted chrome.
+   Some phones (large Android devices especially) report a CSS viewport width
+   past 430px, so this threshold intentionally matches the tablet breakpoint
+   below rather than a phone-sized one. */
+@media (min-width: 768px) {
   body { padding: 24px 0; }
-  #phone { min-height: calc(100vh - 48px); border-radius: 28px; overflow: hidden; }
+  #phone { height: calc(100dvh - 48px); border-radius: 28px; overflow: hidden; }
 }
 
 .icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
