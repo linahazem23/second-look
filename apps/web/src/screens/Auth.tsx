@@ -2,21 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../AuthContext.js';
 import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
+import { suggestUsername } from '../identity.js';
 
 type Mode = 'login' | 'signup' | 'forgot';
 type SignupStep = 1 | 2 | 3;
-
-// A blank username field asks the user to invent something on the spot —
-// suggesting one from her name (plus a short random tag to dodge collisions)
-// gives her something to just accept or tweak instead.
-function suggestUsername(fullName: string): string {
-  const base = fullName
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
-    .slice(0, 14);
-  const tag = Math.floor(10 + Math.random() * 90);
-  return base ? `${base}${tag}` : `diva${tag}`;
-}
 
 export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?: Mode; reason?: string; onCancel?: () => void }) {
   const { login, signup } = useAuth();
@@ -82,7 +71,7 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
       return;
     }
     setError(null);
-    if (!usernameTouched) setUsername(suggestUsername(fullName));
+    if (!usernameTouched) setUsername(suggestUsername());
     setSignupStep(3);
   }
 

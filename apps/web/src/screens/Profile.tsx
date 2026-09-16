@@ -7,6 +7,7 @@ import { Toggle } from '../Toggle.js';
 import { GrowthPanel } from './GrowthPanel.js';
 import { LocationAreaField } from '../LocationArea.js';
 import { maxAllowedPrice } from '../pricing.js';
+import { suggestUsername } from '../identity.js';
 
 const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
 const CONDITIONS = [
@@ -200,6 +201,14 @@ function UsernameCard({ username, onSaved }: { username: string | null; onSaved:
         onChange={(e) => { setValue(e.target.value.replace(/[^a-zA-Z0-9_]/g, '')); setSaved(false); }}
         maxLength={20}
       />
+      <button
+        type="button"
+        className="switch-link"
+        style={{ marginTop: 4 }}
+        onClick={() => { setValue(suggestUsername()); setSaved(false); }}
+      >
+        🎲 Suggest one for me
+      </button>
       {error && <p className="field-error">{error}</p>}
       <div className="row" style={{ marginTop: 8 }}>
         <button className="btn-outline" disabled={busy || value.trim() === (username ?? '')} onClick={handleSave}>
