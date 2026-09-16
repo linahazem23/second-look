@@ -50,7 +50,7 @@ header.topbar {
   padding: 16px 18px; border-bottom: 0.5px solid var(--line);
   background: var(--blush); position: sticky; top: 0; z-index: 5;
 }
-header.topbar .logo { font-family: 'Fraunces', serif; font-size: 19px; font-weight: 600; color: var(--ink); }
+header.topbar .logo { height: 22px; width: auto; display: block; }
 header.topbar .menu-btn {
   width: 32px; height: 32px; border-radius: 50%; border: none;
   background: var(--rose-soft); display: flex; align-items: center; justify-content: center; color: var(--rose-dark);

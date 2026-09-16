@@ -19,8 +19,9 @@ table { border-collapse: collapse; width: 100%; }
 #app { display: flex; min-height: 100vh; }
 
 #sidebar { width: 220px; flex-shrink: 0; background: var(--card); border-right: 0.5px solid var(--line); display: flex; flex-direction: column; padding: 20px 0; }
-#sidebar .brand { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; padding: 0 20px 20px; border-bottom: 0.5px solid var(--line); margin-bottom: 12px; }
-#sidebar .brand span { display: block; font-family: 'Karla', sans-serif; font-size: 11px; color: var(--ink-faint); font-weight: 400; margin-top: 2px; }
+#sidebar .brand { padding: 0 20px 20px; border-bottom: 0.5px solid var(--line); margin-bottom: 12px; }
+#sidebar .brand img { height: 20px; width: auto; display: block; }
+#sidebar .brand span { display: block; font-family: 'Karla', sans-serif; font-size: 11px; color: var(--ink-faint); font-weight: 400; margin-top: 4px; }
 #sidebar button { display: flex; align-items: center; gap: 10px; background: none; border: none; text-align: left; padding: 10px 20px; font-size: 13px; color: var(--ink-light); width: 100%; border-left: 3px solid transparent; }
 #sidebar button.active { color: var(--rose-dark); background: var(--rose-soft); border-left-color: var(--rose); font-weight: 500; }
 #sidebar button .badge { margin-left: auto; background: var(--danger-bg); color: var(--danger-ink); font-size: 10px; padding: 1px 7px; border-radius: 8px; }

@@ -64,7 +64,7 @@ export function App() {
   return (
     <div id="app">
       <div id="sidebar">
-        <div className="brand">Second Look<span>Admin</span></div>
+        <div className="brand"><img src="/logo.png" alt="Second Look" /><span>Admin</span></div>
         {visibleNav.map((n) => (
           <button key={n.id} className={page === n.id && !showChangePassword ? 'active' : ''} onClick={() => { setPage(n.id); setShowChangePassword(false); }}>
             <Icon name={n.icon} />

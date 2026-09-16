@@ -135,7 +135,7 @@ export function App() {
   return (
     <div id="phone">
       <header className="topbar">
-        <span className="logo">Second Look</span>
+        <img className="logo" src="/logo.png" alt="Second Look" />
         <button className="menu-btn" onClick={() => setMenuOpen(true)}>
           <Icon name="menu" size={18} />
         </button>
@@ -214,7 +214,7 @@ function BlockedNotice({ blockedUntil, onLogout }: { blockedUntil: string | null
     return (
       <>
         <header className="topbar">
-          <span className="logo">Second Look</span>
+          <img className="logo" src="/logo.png" alt="Second Look" />
         </header>
         <main className="content">
           <div className="section-head">
@@ -230,7 +230,7 @@ function BlockedNotice({ blockedUntil, onLogout }: { blockedUntil: string | null
   return (
     <>
       <header className="topbar">
-        <span className="logo">Second Look</span>
+        <img className="logo" src="/logo.png" alt="Second Look" />
       </header>
       <main className="content">
         <div className="section-head">
