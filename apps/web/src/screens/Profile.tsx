@@ -95,7 +95,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
       </div>
 
       <UsernameCard username={user.username} onSaved={refresh} />
-      <PhoneCard phoneNumber={user.phoneNumber} phoneVerified={user.phoneVerified} onSaved={refresh} />
+      <PhoneCard phoneNumber={user.phoneNumber} onSaved={refresh} />
 
       <GrowthPanel />
 
@@ -219,36 +219,19 @@ function UsernameCard({ username, onSaved }: { username: string | null; onSaved:
   );
 }
 
-function PhoneCard({ phoneNumber, phoneVerified, onSaved }: { phoneNumber: string | null; phoneVerified: boolean; onSaved: () => void }) {
+function PhoneCard({ phoneNumber, onSaved }: { phoneNumber: string | null; onSaved: () => void }) {
   const [phone, setPhone] = useState(phoneNumber ?? '');
-  const [code, setCode] = useState('');
-  const [stage, setStage] = useState<'idle' | 'code-sent'>('idle');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-  async function requestCode() {
+  async function handleSave() {
     setBusy(true);
     setError(null);
-    setInfo(null);
+    setSaved(false);
     try {
-      await api.post('/api/auth/phone/request-otp', { phoneNumber: phone.trim() });
-      setStage('code-sent');
-      setInfo('Code sent — check your texts.');
-    } catch (err) {
-      setError(friendlyError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyCode() {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post('/api/auth/phone/verify-otp', { code: code.trim() });
-      setStage('idle');
-      setCode('');
+      await api.patch('/api/auth/phone', { phoneNumber: phone.trim() });
+      setSaved(true);
       onSaved();
     } catch (err) {
       setError(friendlyError(err));
@@ -259,43 +242,22 @@ function PhoneCard({ phoneNumber, phoneVerified, onSaved }: { phoneNumber: strin
 
   return (
     <div className="plain-card">
-      <h3>Phone number {phoneVerified && <span className="match-badge" style={{ marginLeft: 6 }}>Verified ✓</span>}</h3>
+      <h3>Phone number</h3>
       <div className="sub">
-        A verified number is the fastest way for us to reach you if anything urgent comes up with an order.
+        So we can reach you fast — by call or WhatsApp — if anything urgent ever comes up with an order.
       </div>
       <input
         style={{ marginTop: 10 }}
         type="tel"
         placeholder="01xxxxxxxxx"
         value={phone}
-        onChange={(e) => { setPhone(e.target.value); setStage('idle'); }}
+        onChange={(e) => { setPhone(e.target.value); setSaved(false); }}
       />
       {error && <p className="field-error">{error}</p>}
-      {info && !error && <p className="discount-hint">{info}</p>}
-
-      {stage === 'code-sent' && (
-        <>
-          <label style={{ marginTop: 10 }}>Enter the code</label>
-          <input
-            type="text"
-            inputMode="numeric"
-            placeholder="6-digit code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-        </>
-      )}
-
       <div className="row" style={{ marginTop: 8 }}>
-        {stage === 'code-sent' ? (
-          <button className="btn-solid" disabled={busy || !code.trim()} onClick={verifyCode}>
-            <span className="shine" /><span className="label">{busy ? 'Verifying…' : 'Verify'}</span>
-          </button>
-        ) : (
-          <button className="btn-outline" disabled={busy || !phone.trim()} onClick={requestCode}>
-            {busy ? 'Sending…' : phoneVerified && phone.trim() === phoneNumber ? 'Send new code' : 'Send code'}
-          </button>
-        )}
+        <button className="btn-outline" disabled={busy || !phone.trim() || phone.trim() === (phoneNumber ?? '')} onClick={handleSave}>
+          {busy ? 'Saving…' : saved ? 'Saved ✓' : 'Save phone number'}
+        </button>
       </div>
     </div>
   );

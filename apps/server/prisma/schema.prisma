@@ -88,13 +88,10 @@ model User {
   // the moment it's redeemed or replaced by a newer request.
   passwordResetToken      String?   @unique
   passwordResetExpiresAt  DateTime?
-  // A verified phone number is Second Look's fastest channel to reach a member
-  // directly for anything urgent (safety, disputes) — separate from the
-  // guardian's phone, which is a different person's number entirely.
+  // A real (unverified — no SMS provider wired up, same tradeoff as the
+  // guardian's phone) contact number, so Second Look can reach a member
+  // directly and fast for anything urgent (safety, disputes).
   phoneNumber             String?   @unique
-  phoneVerified           Boolean   @default(false)
-  phoneOtpCode            String?
-  phoneOtpExpiresAt       DateTime?
   status              UserStatus    @default(Good)
   buyOnlyUntil        DateTime?
   blockedUntil        DateTime?

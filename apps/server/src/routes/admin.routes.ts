@@ -115,7 +115,6 @@ adminRouter.get('/users', async (req, res) => {
       completedSalesCount: u.completedSalesCount,
       flagCount: u.flagCount,
       phoneNumber: u.phoneNumber,
-      phoneVerified: u.phoneVerified,
       createdAt: u.createdAt
     }))
   });

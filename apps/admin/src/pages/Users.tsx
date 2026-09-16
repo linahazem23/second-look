@@ -13,7 +13,6 @@ interface AdminUserRow {
   completedSalesCount: number;
   flagCount: number;
   phoneNumber: string | null;
-  phoneVerified: boolean;
   createdAt: string;
 }
 
@@ -58,7 +57,7 @@ export function Users() {
             {users.map((u) => (
               <tr key={u.id}>
                 <td>{u.fullName}<div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{u.email}</div></td>
-                <td>{u.phoneNumber ?? '—'}{u.phoneNumber && (u.phoneVerified ? <Pill value="Verified" /> : <Pill value="Unverified" />)}</td>
+                <td>{u.phoneNumber ?? '—'}</td>
                 <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                 <td>{u.completedSalesCount}</td>
                 <td>{u.flagCount}</td>
