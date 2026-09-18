@@ -32,6 +32,14 @@ body {
 h1, h2, h3, p, ul { margin: 0; }
 button { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; }
+/* No custom :focus style existed anywhere — every focused field just showed
+   the browser's raw default outline (a blue/orange ring in a color the app
+   never chose), clashing with the rose/pink design everywhere else. */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--rose);
+  box-shadow: 0 0 0 3px rgba(212, 99, 138, 0.22);
+}
 
 #phone {
   max-width: 430px;
