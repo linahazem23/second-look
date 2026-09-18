@@ -4,7 +4,19 @@ import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signAdminToken, requireAdmin, requireRole, type AuthedRequest } from '../lib/auth.js';
 import { applyStrike, applyImmediateBlock, hasActiveEscrowOrder } from '../lib/strikes.js';
 import { grantMembershipDays, MEMBERSHIP_GRANT_DAYS, VIDEO_PROMO_MAX_GRANTS } from '../lib/membership.js';
-import { notifySupportReply, notifyKycApproved } from '../lib/email.js';
+import {
+  notifySupportReply,
+  notifyKycApproved,
+  notifyMotherStatusChanged,
+  notifyKycRejected,
+  notifyGuardianConsentApproved,
+  notifyGuardianConsentRejected,
+  notifyAccountBlocked,
+  notifyStrikeApplied,
+  notifyAppealOverturned,
+  notifyVideoPromoApproved,
+  notifyVideoPromoRejected
+} from '../lib/email.js';
 import { refundPaymobTransaction } from '../lib/paymob.js';
 
 export const adminRouter = Router();
@@ -128,6 +140,7 @@ adminRouter.patch('/users/:id/mother', async (req, res) => {
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
 
   const user = await prisma.user.update({ where: { id: req.params.id }, data: { isMother: parsed.data.isMother } });
+  notifyMotherStatusChanged({ recipientEmail: user.email, recipientName: user.username ?? user.fullName, isMother: user.isMother }).catch(() => {});
   return res.json({ id: user.id, isMother: user.isMother });
 });
 
@@ -158,6 +171,7 @@ adminRouter.post('/kyc-pending/:id/reject', async (req, res) => {
     where: { id: req.params.id },
     data: { kycStatus: 'rejected', verifiedFemale: false, kycRejectionReason: parsed.data.reason }
   });
+  notifyKycRejected({ recipientEmail: user.email, recipientName: user.username ?? user.fullName, reason: parsed.data.reason }).catch(() => {});
   return res.json({ user: { id: user.id, kycStatus: user.kycStatus }, reason: parsed.data.reason });
 });
 
@@ -181,6 +195,7 @@ adminRouter.post('/guardian-consent-pending/:id/approve', async (req, res) => {
     where: { id: req.params.id },
     data: { guardianConsentStatus: 'approved', guardianRejectionReason: null }
   });
+  notifyGuardianConsentApproved({ recipientEmail: user.email, recipientName: user.username ?? user.fullName }).catch(() => {});
   return res.json({ user: { id: user.id, guardianConsentStatus: user.guardianConsentStatus } });
 });
 
@@ -192,6 +207,7 @@ adminRouter.post('/guardian-consent-pending/:id/reject', async (req, res) => {
     where: { id: req.params.id },
     data: { guardianConsentStatus: 'rejected', guardianRejectionReason: parsed.data.reason }
   });
+  notifyGuardianConsentRejected({ recipientEmail: user.email, recipientName: user.username ?? user.fullName, reason: parsed.data.reason }).catch(() => {});
   return res.json({ user: { id: user.id, guardianConsentStatus: user.guardianConsentStatus }, reason: parsed.data.reason });
 });
 
@@ -212,6 +228,7 @@ adminRouter.post('/users/:id/immediate-block', requireRole('super_admin'), async
       resolvedAt: new Date()
     }
   });
+  notifyAccountBlocked({ recipientEmail: user.email, recipientName: user.username ?? user.fullName, reason: parsed.data.reason, blockedUntil: user.blockedUntil }).catch(() => {});
   return res.json({ user });
 });
 
@@ -372,6 +389,9 @@ adminRouter.post('/moderation-cases/:id/escalate', async (req: AuthedRequest, re
     data: { status: 'resolved', resolvedAt: new Date(), resolvedByAdminId: req.adminId, notes: `Escalated: ${result.tier}` }
   });
 
+  const until = result.tier === 'buy_only_restriction' ? result.user.buyOnlyUntil : result.tier === 'temp_block' ? result.user.blockedUntil : null;
+  notifyStrikeApplied({ recipientEmail: result.user.email, recipientName: result.user.username ?? result.user.fullName, tier: result.tier, until }).catch(() => {});
+
   return res.json({ outcome: result.tier, targetUserId, hasOrderInFlight });
 });
 
@@ -420,7 +440,8 @@ adminRouter.post('/appeals/:id/decide', async (req: AuthedRequest, res) => {
   });
 
   if (parsed.data.outcome === 'overturn') {
-    await prisma.user.update({ where: { id: appeal.userId }, data: { status: 'Good', buyOnlyUntil: null, blockedUntil: null } });
+    const user = await prisma.user.update({ where: { id: appeal.userId }, data: { status: 'Good', buyOnlyUntil: null, blockedUntil: null } });
+    notifyAppealOverturned({ recipientEmail: user.email, recipientName: user.username ?? user.fullName }).catch(() => {});
   }
 
   return res.json({ appeal: updated });
@@ -730,6 +751,7 @@ adminRouter.post('/video-submissions/:id/approve', async (req: AuthedRequest, re
     prisma.user.update({ where: { id: user.id }, data: { videoPromoGrantsUsed: { increment: 1 } } })
   ]);
   const updatedUser = await grantMembershipDays(user.id, MEMBERSHIP_GRANT_DAYS);
+  notifyVideoPromoApproved({ recipientEmail: user.email, recipientName: user.username ?? user.fullName, days: MEMBERSHIP_GRANT_DAYS }).catch(() => {});
 
   return res.json({ outcome: 'approved', membershipExpiresAt: updatedUser.membershipExpiresAt });
 });
@@ -746,5 +768,7 @@ adminRouter.post('/video-submissions/:id/reject', async (req: AuthedRequest, res
     where: { id: submission.id },
     data: { status: 'rejected', rejectionReason: parsed.data.reason, reviewedByAdminId: req.adminId, reviewedAt: new Date() }
   });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: submission.userId } });
+  notifyVideoPromoRejected({ recipientEmail: user.email, recipientName: user.username ?? user.fullName, reason: parsed.data.reason }).catch(() => {});
   return res.json({ submission: updated });
 });

@@ -21,6 +21,24 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
 
+// Shared wrapper for the batch of account-change notifications below — same
+// wordmark/colors/button as the hand-written templates above, factored out
+// since there are enough of these now that repeating the shell each time
+// would just be noise.
+function accountChangeEmailHtml(bodyHtml: string, ctaLabel = 'Open Second Look'): string {
+  return `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
+      <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
+      ${bodyHtml}
+      <a href="${APP_URL}/" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">${ctaLabel}</a>
+    </div>
+  `;
+}
+
+function paragraph(text: string): string {
+  return `<p style="color: #37202A; font-size: 15px; line-height: 1.6;">${text}</p>`;
+}
+
 /**
  * Fire-and-forget new-message notification. Never throws — a failed or skipped
  * email must never interrupt sending the actual chat message.
@@ -304,5 +322,129 @@ export async function notifySupportReply(params: { recipientEmail: string; recip
     });
   } catch (err) {
     console.error('Failed to send support reply notification email', err);
+  }
+}
+
+// ---- Account-change notifications ----
+// Anything an admin does that changes a real field on a member's account
+// (not just internal case notes) gets a fire-and-forget email — same as the
+// hand-written ones above, never debounced, never thrown on failure.
+
+export async function notifyMotherStatusChanged(params: { recipientEmail: string; recipientName: string; isMother: boolean }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const body = params.isMother
+    ? paragraph(`Hi ${name}, your account now has access to the Mom &amp; Baby section — a hidden space to buy, sell, and chat with other moms. You'll find it right on Home and in Community.`)
+    : paragraph(`Hi ${name}, your account's Mom &amp; Baby access has been removed. If this doesn't seem right, reach out to Second Look Support.`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: 'Your Second Look account was updated', html: accountChangeEmailHtml(body) });
+  } catch (err) {
+    console.error('Failed to send mother-status-changed email', err);
+  }
+}
+
+export async function notifyKycRejected(params: { recipientEmail: string; recipientName: string; reason: string }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const body =
+    paragraph(`Hi ${name}, we weren't able to verify your ID this time.`) +
+    `<p style="background: #F6D9E3; padding: 12px 16px; border-radius: 10px; color: #37202A; font-size: 14px;">${escapeHtml(params.reason)}</p>` +
+    paragraph(`You can resubmit your ID and a live selfie any time — just reopen the app.`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: "We couldn't verify your ID", html: accountChangeEmailHtml(body, 'Resubmit ID') });
+  } catch (err) {
+    console.error('Failed to send KYC-rejected email', err);
+  }
+}
+
+export async function notifyGuardianConsentApproved(params: { recipientEmail: string; recipientName: string }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const body = paragraph(`Hi ${name}, your guardian's consent has been approved — that part of your account setup is complete.`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: 'Your guardian consent was approved', html: accountChangeEmailHtml(body) });
+  } catch (err) {
+    console.error('Failed to send guardian-consent-approved email', err);
+  }
+}
+
+export async function notifyGuardianConsentRejected(params: { recipientEmail: string; recipientName: string; reason: string }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const body =
+    paragraph(`Hi ${name}, your guardian's consent submission wasn't approved this time.`) +
+    `<p style="background: #F6D9E3; padding: 12px 16px; border-radius: 10px; color: #37202A; font-size: 14px;">${escapeHtml(params.reason)}</p>` +
+    paragraph(`Your guardian can resubmit whenever you're ready.`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: "Your guardian consent wasn't approved", html: accountChangeEmailHtml(body) });
+  } catch (err) {
+    console.error('Failed to send guardian-consent-rejected email', err);
+  }
+}
+
+export async function notifyAccountBlocked(params: { recipientEmail: string; recipientName: string; reason: string; blockedUntil: Date | null }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const untilText = params.blockedUntil ? `until ${params.blockedUntil.toLocaleDateString()}` : 'indefinitely';
+  const body =
+    paragraph(`Hi ${name}, your account has been blocked ${untilText}.`) +
+    `<p style="background: #F6D9E3; padding: 12px 16px; border-radius: 10px; color: #37202A; font-size: 14px;">${escapeHtml(params.reason)}</p>` +
+    paragraph(`If you think this is a mistake, you can appeal from the app — a different moderator will review it.`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: 'Your Second Look account has been blocked', html: accountChangeEmailHtml(body, 'Open Second Look') });
+  } catch (err) {
+    console.error('Failed to send account-blocked email', err);
+  }
+}
+
+export async function notifyStrikeApplied(params: { recipientEmail: string; recipientName: string; tier: 'coach' | 'buy_only_restriction' | 'temp_block'; until: Date | null }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const message =
+    params.tier === 'coach'
+      ? `a flag on your account. There's no restriction yet, but please take a moment to review our community guidelines.`
+      : params.tier === 'buy_only_restriction'
+        ? `repeated flags on your account. You can still buy, but selling is temporarily restricted${params.until ? ` until ${params.until.toLocaleDateString()}` : ''}.`
+        : `repeated flags on your account. It's been temporarily blocked${params.until ? ` until ${params.until.toLocaleDateString()}` : ''}.`;
+  const body = paragraph(`Hi ${name}, we wanted to let you know about ${message}`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: 'An update on your Second Look account', html: accountChangeEmailHtml(body) });
+  } catch (err) {
+    console.error('Failed to send strike-applied email', err);
+  }
+}
+
+export async function notifyAppealOverturned(params: { recipientEmail: string; recipientName: string }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const body = paragraph(`Hi ${name}, good news — your appeal was reviewed and your account has been fully restored.`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: 'Your appeal was approved', html: accountChangeEmailHtml(body) });
+  } catch (err) {
+    console.error('Failed to send appeal-overturned email', err);
+  }
+}
+
+export async function notifyVideoPromoApproved(params: { recipientEmail: string; recipientName: string; days: number }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const body = paragraph(`Hi ${name}, your promo video was approved 🎉 You've earned ${params.days} days of free unlimited boosting.`);
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: 'Your promo video was approved!', html: accountChangeEmailHtml(body) });
+  } catch (err) {
+    console.error('Failed to send video-promo-approved email', err);
+  }
+}
+
+export async function notifyVideoPromoRejected(params: { recipientEmail: string; recipientName: string; reason: string }) {
+  if (!resend) return;
+  const name = escapeHtml(params.recipientName);
+  const body =
+    paragraph(`Hi ${name}, your promo video submission wasn't approved this time.`) +
+    `<p style="background: #F6D9E3; padding: 12px 16px; border-radius: 10px; color: #37202A; font-size: 14px;">${escapeHtml(params.reason)}</p>`;
+  try {
+    await resend.emails.send({ from: FROM, to: params.recipientEmail, subject: "Your promo video wasn't approved", html: accountChangeEmailHtml(body) });
+  } catch (err) {
+    console.error('Failed to send video-promo-rejected email', err);
   }
 }
