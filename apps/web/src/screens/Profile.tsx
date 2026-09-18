@@ -9,7 +9,10 @@ import { LocationAreaField } from '../LocationArea.js';
 import { maxAllowedPrice } from '../pricing.js';
 import { suggestUsername } from '../identity.js';
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
+function categoryLabel(c: string): string {
+  return c === 'MomBaby' ? 'Mom & Baby' : c;
+}
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },
   { value: 'UsedOnce', label: 'Used once' },
@@ -274,6 +277,7 @@ async function updateStatus(id: string, status: string, reload: () => void, setE
 }
 
 function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; onDone: () => void; onCancel: () => void }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState(listing.title);
   const [category, setCategory] = useState(listing.category);
   const [condition, setCondition] = useState(listing.condition);
@@ -339,7 +343,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
 
       <label>Category</label>
       <select value={category} onChange={(e) => setCategory(e.target.value)}>
-        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
       </select>
 
       {category === 'Clothes' && (

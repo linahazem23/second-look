@@ -81,7 +81,7 @@ export function Demand() {
       {requests.map((d) => (
         <div className="plain-card" key={d.id}>
           <h3>{d.itemName} {d.boosted && <span className="match-badge">Boosted</span>}</h3>
-          <div className="sub">{displayName(d.requester)} in {d.area} is looking for this &middot; {d.category}</div>
+          <div className="sub">{displayName(d.requester)} in {d.area} is looking for this &middot; {d.category === 'MomBaby' ? 'Mom & Baby' : d.category}</div>
           <div className="row">
             <button
               className={`btn-outline ${offered[d.id] ? 'done' : ''}`}

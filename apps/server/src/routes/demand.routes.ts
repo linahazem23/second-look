@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/db.js';
-import { requireAuth, type AuthedRequest } from '../lib/auth.js';
+import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
 import { isPlusActive } from '../lib/membership.js';
@@ -9,14 +9,16 @@ import { createPaymobCheckout } from '../lib/paymob.js';
 
 export const demandRouter = Router();
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
 
 // Comments must not become a back-channel to move the deal off-platform.
 const CONTACT_INFO_PATTERN = /(\+?20|0)?1[0125]\d{8}|whatsapp|instagram|\bfb\.com\b|@[a-z0-9_]{3,}/i;
 
-demandRouter.get('/', async (_req, res) => {
+demandRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
+  const me = req.userId ? await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } }) : null;
+
   const requests = await prisma.demandRequest.findMany({
-    where: { status: 'open' },
+    where: { status: 'open', ...(me?.isMother ? {} : { category: { not: 'MomBaby' } }) },
     orderBy: [{ boosted: 'desc' }, { createdAt: 'desc' }],
     include: { comments: true, requester: { select: { id: true, fullName: true, username: true } } }
   });
@@ -33,6 +35,11 @@ const createSchema = z.object({
 demandRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  if (parsed.data.category === 'MomBaby') {
+    const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } });
+    if (!me?.isMother) return res.status(403).json({ error: 'Mom & Baby requests are only available to members who opted in as a mother.' });
+  }
 
   const request = await prisma.demandRequest.create({ data: { ...parsed.data, requesterId: req.userId! } });
 

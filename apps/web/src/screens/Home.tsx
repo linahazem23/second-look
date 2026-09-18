@@ -10,8 +10,14 @@ import { Explore } from './Explore.js';
 import { displayName } from '../identity.js';
 import { maxAllowedPrice } from '../pricing.js';
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
 const BROWSE_CATEGORIES = ['All', ...CATEGORIES] as const;
+// "MomBaby" is the enum value everywhere else in the app, but reads oddly as a
+// label — this is the only place a human sees it, so it gets a friendly name.
+function categoryLabel(c: string): string {
+  return c === 'MomBaby' ? 'Mom & Baby' : c;
+}
+const SELL_REMINDER_KEY_PREFIX = 'sl_sell_reminder_';
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },
   { value: 'UsedOnce', label: 'Used once' },
@@ -97,6 +103,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSellForm, setShowSellForm] = useState(false);
+  const [showSellReminder, setShowSellReminder] = useState(false);
   const [showExplore, setShowExplore] = useState(false);
   const [activeAd, setActiveAd] = useState<ActiveAd | null>(null);
 
@@ -159,6 +166,21 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       }
       pollBoostPayment(listingId, boostPaymentId, attempt + 1);
     }, 3000);
+  }
+
+  function tapSell() {
+    if (!user) return onNeedAuth?.();
+    if (showSellForm) { setShowSellForm(false); return; }
+    const todayKey = SELL_REMINDER_KEY_PREFIX + new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem(todayKey)) { setShowSellForm(true); return; }
+    setShowSellReminder(true);
+  }
+
+  function acknowledgeSellReminder() {
+    const todayKey = SELL_REMINDER_KEY_PREFIX + new Date().toISOString().slice(0, 10);
+    localStorage.setItem(todayKey, '1');
+    setShowSellReminder(false);
+    setShowSellForm(true);
   }
 
   async function boostListing(id: string) {
@@ -229,9 +251,9 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       </div>
 
       <div className="cat-toggle">
-        {BROWSE_CATEGORIES.map((c) => (
+        {BROWSE_CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => (
           <button key={c} className={category === c ? 'active' : ''} onClick={() => setCategory(c)}>
-            {c}
+            {categoryLabel(c)}
           </button>
         ))}
       </div>
@@ -277,10 +299,14 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       )}
 
       <div className="post-btn-wrap">
-        <button className="post-toggle" onClick={() => (user ? setShowSellForm((v) => !v) : onNeedAuth?.())}>
+        <button className="post-toggle" onClick={tapSell}>
           <Icon name="plus" size={16} /> {showSellForm ? 'Cancel' : 'Sell an item'}
         </button>
       </div>
+
+      {showSellReminder && (
+        <SellGuidelineModal onAcknowledge={acknowledgeSellReminder} onClose={() => setShowSellReminder(false)} />
+      )}
 
       {showSellForm && user && <SellForm onPosted={() => { setShowSellForm(false); load(); }} />}
 
@@ -405,6 +431,26 @@ function AdCard({ ad }: { ad: ActiveAd | null }) {
         <div className="meta">{ad ? 'Sponsored' : 'Reach thousands of verified shoppers — get in touch'}</div>
       </div>
     </a>
+  );
+}
+
+// Shown once per calendar day (localStorage-dated key, same convention as
+// App.tsx's DivaModal) right before opening the sell form — a friendly
+// reminder, not a hard gate, so it's a single acknowledge-and-continue button.
+function SellGuidelineModal({ onAcknowledge, onClose }: { onAcknowledge: () => void; onClose: () => void }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(90,46,61,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div className="plain-card" style={{ margin: '0 24px', maxWidth: 360, textAlign: 'center', padding: '28px 22px' }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ fontSize: 34 }}>🧼</div>
+        <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: 18, marginTop: 10 }}>Before you list</h3>
+        <p className="sub" style={{ marginTop: 8, fontSize: 13.5, lineHeight: 1.5 }}>
+          Please hand off items clean and presentable, in the condition you described. Sellers who don't can be flagged as spam.
+        </p>
+        <button className="btn-solid" style={{ marginTop: 16, width: '100%' }} onClick={onAcknowledge}>
+          <span className="shine" /><span className="label">Got it</span>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -655,6 +701,7 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
 }
 
 function SellForm({ onPosted }: { onPosted: () => void }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<string>('Skincare');
   const [originalPrice, setOriginalPrice] = useState('');
@@ -719,7 +766,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
 
       <label>Category</label>
       <select value={category} onChange={(e) => setCategory(e.target.value)}>
-        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
       </select>
 
       {category === 'Clothes' && (

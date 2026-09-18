@@ -224,6 +224,58 @@ export async function notifyKycApproved(params: { recipientEmail: string; recipi
 }
 
 /**
+ * Sent once, right after signup — a real transactional event, not a repeating
+ * notification, so it doesn't go through the debounce map. Combines the
+ * community guidelines (otherwise only seen slide-by-slide during onboarding)
+ * into one warm, readable welcome.
+ */
+export async function notifyWelcome(params: { recipientEmail: string; recipientName: string }) {
+  if (!resend) return;
+
+  const link = `${APP_URL}/`;
+  const name = escapeHtml(params.recipientName);
+
+  const guidelines = [
+    ['Every member is verified', 'Every seller and buyer here is a real, identity-verified woman — no anonymous strangers, no guessing who you\'re dealing with.'],
+    ['Chats may be reviewed', 'For everyone\'s safety, our moderation team can look into a conversation if something\'s flagged — it keeps the whole space honest.'],
+    ['Be honest, always', 'Describe your items accurately, and only review real, completed orders. Trust here is built one honest listing at a time.'],
+    ['Report, don\'t retaliate', 'If something feels off, tap report instead of taking it into your own hands. We\'ll take it from there.']
+  ];
+
+  const guidelineHtml = guidelines
+    .map(
+      ([title, body]) => `
+        <div style="background: #F6D9E3; border-radius: 10px; padding: 12px 16px; margin-bottom: 10px;">
+          <p style="color: #5A2E3D; font-size: 14px; font-weight: 600; margin: 0 0 4px;">${escapeHtml(title)}</p>
+          <p style="color: #37202A; font-size: 13.5px; margin: 0; line-height: 1.5;">${escapeHtml(body)}</p>
+        </div>`
+    )
+    .join('');
+
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: params.recipientEmail,
+      subject: 'Welcome to Second Look 💕',
+      html: `
+        <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
+          <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
+          <p style="color: #37202A; font-size: 15px;">Hiii ${name} 💕</p>
+          <p style="color: #37202A; font-size: 15px; line-height: 1.6;">Welcome to Second Look — a women-only, identity-verified space to buy and sell skincare, haircare, makeup, and clothes without the usual stranger-danger of a random Facebook group.</p>
+          <p style="color: #37202A; font-size: 15px; line-height: 1.6;">A few things worth knowing before you dive in:</p>
+          ${guidelineHtml}
+          <p style="color: #37202A; font-size: 15px; line-height: 1.6;">And here's the part that actually protects you: when someone buys, the payment sits with Second Look — not the seller — until the buyer confirms the item arrived as expected. If anything ever feels off in a chat, there's a 🆘 SOS button right there that brings a real person from our team straight into the conversation.</p>
+          <p style="color: #37202A; font-size: 15px; line-height: 1.6;">We're building something real here — a community where every one of us matters, every behavior counts, and every bit of trust is worth protecting. Keep flagging what's off, keep selling honestly, keep leaving real reviews. That's what makes this place safe for the next girl too. احنا كلنا بنات حلال 💕</p>
+          <a href="${link}" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">Open Second Look</a>
+        </div>
+      `
+    });
+  } catch (err) {
+    console.error('Failed to send welcome email', err);
+  }
+}
+
+/**
  * Sent when a real admin replies to a user's customer-support message — not
  * the canned quick-reply bot, which the user already sees instantly in-app.
  */

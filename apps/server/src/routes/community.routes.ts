@@ -8,13 +8,16 @@ import { notifyThreadReply } from '../lib/email.js';
 
 export const communityRouter = Router();
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'General'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby', 'General'] as const;
 
 const AUTHOR_SELECT = { id: true, fullName: true, username: true } as const;
 
 // Public — reading consultations doesn't require an account, same as browsing listings.
 communityRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
+  const me = req.userId ? await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } }) : null;
+
   const threads = await prisma.communityThread.findMany({
+    where: me?.isMother ? {} : { category: { not: 'MomBaby' } },
     orderBy: { createdAt: 'desc' },
     include: {
       author: { select: AUTHOR_SELECT },
@@ -54,6 +57,11 @@ communityRouter.post('/', requireAuth, requireVerified, async (req: AuthedReques
     return res.status(422).json({ error: 'This post was blocked for review. Please keep posts respectful.' });
   }
 
+  if (parsed.data.category === 'MomBaby') {
+    const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } });
+    if (!me?.isMother) return res.status(403).json({ error: 'Mom & Baby is only available to members who opted in as a mother.' });
+  }
+
   const thread = await prisma.communityThread.create({
     data: { authorId: req.userId!, title: parsed.data.title, body: parsed.data.body, category: parsed.data.category },
     include: { author: { select: AUTHOR_SELECT } }
@@ -77,6 +85,11 @@ communityRouter.get('/:id', optionalAuth, async (req: AuthedRequest, res) => {
   });
   if (!thread) return res.status(404).json({ error: 'Thread not found' });
 
+  if (thread.category === 'MomBaby') {
+    const me = req.userId ? await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } }) : null;
+    if (!me?.isMother) return res.status(404).json({ error: 'Thread not found' });
+  }
+
   return res.json({
     thread: {
       id: thread.id,
@@ -97,6 +110,11 @@ const replySchema = z.object({ body: z.string().min(1).max(2000) });
 communityRouter.post('/:id/replies', requireAuth, async (req: AuthedRequest, res) => {
   const thread = await prisma.communityThread.findUnique({ where: { id: req.params.id } });
   if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+  if (thread.category === 'MomBaby') {
+    const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } });
+    if (!me?.isMother) return res.status(404).json({ error: 'Thread not found' });
+  }
 
   const parsed = replySchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });

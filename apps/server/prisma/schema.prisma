@@ -13,6 +13,7 @@ enum Category {
   Makeup
   Clothes
   Haircare
+  MomBaby
 }
 
 enum Condition {
@@ -102,6 +103,9 @@ model User {
   skinType            String?
   hairType            String?
   clothingSize        String?
+  // Opted in at signup — unlocks the Mom & Baby category and Community section,
+  // which stay entirely hidden (server-filtered, not just UI-hidden) otherwise.
+  isMother            Boolean       @default(false)
   // Growth/referral promo: membership perks (currently: free boosting + a Plus
   // badge) are active whenever membershipExpiresAt is in the future — checked live
   // on every read, never written back on expiry, so there's nothing to "forget".
@@ -455,6 +459,18 @@ model AppFeedback {
   userId    String
   message   String
   createdAt DateTime @default(now())
+}
+
+// A quick, immediate pulse-check fired right when the buyer taps "Confirm
+// delivery" — distinct from the considered, 6-day-locked Review. One per
+// order; a resubmit just overwrites via upsert.
+model DeliveryFeedback {
+  id              String   @id @default(cuid())
+  orderId         String   @unique
+  buyerId         String
+  conditionRating String   // as_described | slightly_different | not_as_described
+  comment         String?
+  createdAt       DateTime @default(now())
 }
 
 model AdminUser {

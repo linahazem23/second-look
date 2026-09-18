@@ -9,7 +9,7 @@ import { maxAllowedPrice } from '../lib/pricing.js';
 
 export const listingsRouter = Router();
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
 const CONDITIONS = ['NeverUsed', 'UsedOnce', 'UsedAFewTimes', 'RegularlyUsed'] as const;
 
 const listingSchema = z
@@ -56,9 +56,21 @@ function withDiscount(listing: { originalPrice: number; price: number }) {
 listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
   const { q, category, size, skinType, hairType, condition, area, allowOffers, sortBy, sortDir } = req.query as Record<string, string | undefined>;
 
+  const me = req.userId
+    ? await prisma.user.findUnique({ where: { id: req.userId }, select: { skinType: true, hairType: true, clothingSize: true, isMother: true } })
+    : null;
+
+  // Mom & Baby is hidden entirely from non-mothers — a direct request for it
+  // comes back empty rather than erroring, and it never leaks into an
+  // unfiltered/"All" feed for anyone who hasn't opted in.
+  if (category === 'MomBaby' && !me?.isMother) {
+    return res.json({ listings: [], count: 0 });
+  }
+
   const where: any = { status: 'Active' };
   if (q) where.title = { contains: q, mode: 'insensitive' };
   if (category && category !== 'All') where.category = category;
+  else if (!me?.isMother) where.category = { not: 'MomBaby' };
   if (size) where.size = { in: [size, 'One Size'] };
   // "All" on a listing means suitable for everyone, so it should surface
   // under any specific skin/hair type filter too, not just an exact match.
@@ -82,10 +94,7 @@ listingsRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
   // listing down. A listing marked "All" always counts as a match.
   let personalized = listings;
   if (req.userId) {
-    const [saved, me] = await Promise.all([
-      prisma.savedListing.findMany({ where: { userId: req.userId, listingId: { in: listings.map((l) => l.id) } }, select: { listingId: true } }),
-      prisma.user.findUnique({ where: { id: req.userId }, select: { skinType: true, hairType: true, clothingSize: true } })
-    ]);
+    const saved = await prisma.savedListing.findMany({ where: { userId: req.userId, listingId: { in: listings.map((l) => l.id) } }, select: { listingId: true } });
     savedIds = new Set(saved.map((s) => s.listingId));
     if (me && (me.skinType || me.hairType || me.clothingSize)) {
       const matches = (l: (typeof listings)[number]) => {
@@ -163,6 +172,11 @@ listingsRouter.post('/', requireAuth, requireVerified, requireCanSell, async (re
   const parsed = listingSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
 
+  if (parsed.data.category === 'MomBaby') {
+    const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } });
+    if (!me?.isMother) return res.status(403).json({ error: 'Mom & Baby listings are only available to members who opted in as a mother.' });
+  }
+
   const listing = await prisma.listing.create({
     data: { ...parsed.data, sellerId: req.userId! }
   });
@@ -222,6 +236,10 @@ listingsRouter.patch('/:id', requireAuth, async (req: AuthedRequest, res) => {
   }
   if (nextCategory === 'Haircare' && !(parsed.data.hairType ?? listing.hairType)) {
     return res.status(422).json({ error: 'Hair type is required for Haircare listings.' });
+  }
+  if (nextCategory === 'MomBaby') {
+    const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } });
+    if (!me?.isMother) return res.status(403).json({ error: 'Mom & Baby listings are only available to members who opted in as a mother.' });
   }
 
   const updated = await prisma.listing.update({ where: { id: listing.id }, data: parsed.data });

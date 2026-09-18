@@ -4,7 +4,10 @@ import { useAuth } from '../AuthContext.js';
 import { Icon } from '../Icon.js';
 import { LocationAreaField } from '../LocationArea.js';
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
+function categoryLabel(c: string): string {
+  return c === 'MomBaby' ? 'Mom & Baby' : c;
+}
 
 interface WantRequest {
   id: string;
@@ -135,7 +138,7 @@ export function Want() {
           <input required placeholder="e.g. Green clay mask" value={itemName} onChange={(e) => setItemName(e.target.value)} />
           <label>Category</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+            {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
           </select>
           <label>Area</label>
           <LocationAreaField value={area} onChange={setArea} />

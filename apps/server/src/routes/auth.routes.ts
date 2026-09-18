@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
-import { notifyGuardianConsentRequest, notifyPasswordReset } from '../lib/email.js';
+import { notifyGuardianConsentRequest, notifyPasswordReset, notifyWelcome } from '../lib/email.js';
 import { upload, uploadToStorage } from '../lib/upload.js';
 
 export const authRouter = Router();
@@ -26,7 +26,8 @@ const signupSchema = z
     username: z.string().regex(USERNAME_PATTERN, 'Username must be 3-20 letters, numbers, or underscores.').optional(),
     guardianName: z.string().min(1).optional(),
     guardianPhone: z.string().min(6).optional(),
-    guardianEmail: z.string().email().optional()
+    guardianEmail: z.string().email().optional(),
+    isMother: z.boolean().optional().default(false)
   })
   .refine((d) => d.age === undefined || d.age >= MINOR_AGE_THRESHOLD || Boolean(d.guardianName && d.guardianPhone && d.guardianEmail), {
     message: "A guardian's name, phone, and email are required for members under 18.",
@@ -74,6 +75,7 @@ authRouter.post('/signup', async (req, res) => {
       phoneNumber: parsed.data.phoneNumber,
       languagePreference: parsed.data.languagePreference,
       username: parsed.data.username,
+      isMother: parsed.data.isMother,
       referralCode,
       referredByUserId,
       guardianName: parsed.data.guardianName,
@@ -92,6 +94,8 @@ authRouter.post('/signup', async (req, res) => {
       token: guardianConsentToken
     }).catch(() => {});
   }
+
+  notifyWelcome({ recipientEmail: user.email, recipientName: user.username ?? user.fullName }).catch(() => {});
 
   const token = signUserToken(user.id);
   return res.status(201).json({

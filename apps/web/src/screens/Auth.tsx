@@ -27,6 +27,7 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
   const [guardianName, setGuardianName] = useState('');
   const [guardianPhone, setGuardianPhone] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
+  const [isMother, setIsMother] = useState(false);
   const isMinor = age !== '' && Number(age) < 18;
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
@@ -94,7 +95,8 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
         username: username || undefined,
         guardianName: isMinor ? guardianName : undefined,
         guardianPhone: isMinor ? guardianPhone : undefined,
-        guardianEmail: isMinor ? guardianEmail : undefined
+        guardianEmail: isMinor ? guardianEmail : undefined,
+        isMother
       });
     } catch (err) {
       setError(friendlyError(err));
@@ -208,6 +210,15 @@ export function Auth({ initialMode = 'login', reason, onCancel }: { initialMode?
             />
             <p className="lead" style={{ fontSize: 11.5, marginTop: -6 }}>
               So we can reach you fast if anything urgent ever comes up with an order.
+            </p>
+
+            <label>Are you a mom? 🤍</label>
+            <div className="ob-options" style={{ flexDirection: 'row' }}>
+              <button type="button" className={isMother ? 'picked' : ''} onClick={() => setIsMother(true)}>Yes</button>
+              <button type="button" className={!isMother ? 'picked' : ''} onClick={() => setIsMother(false)}>No</button>
+            </div>
+            <p className="lead" style={{ fontSize: 11.5, marginTop: -2 }}>
+              This unlocks a Mom &amp; Baby section for buying, selling, and chatting with other moms — hidden unless you opt in.
             </p>
 
             {isMinor && (

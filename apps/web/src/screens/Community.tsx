@@ -2,8 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
 import { displayName } from '../identity.js';
+import { useAuth } from '../AuthContext.js';
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'General'] as const;
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby', 'General'] as const;
+function categoryLabel(c: string): string {
+  return c === 'MomBaby' ? 'Mom & Baby' : c;
+}
 
 interface Author {
   id: string;
@@ -90,7 +94,7 @@ export function Community() {
             style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', width: '100%', cursor: 'pointer' }}
             onClick={() => setOpenThreadId(t.id)}
           >
-            <h3>{t.title} {t.category && <span className="match-badge" style={{ marginLeft: 6 }}>{t.category}</span>}</h3>
+            <h3>{t.title} {t.category && <span className="match-badge" style={{ marginLeft: 6 }}>{categoryLabel(t.category)}</span>}</h3>
             <div className="sub" style={{ marginTop: 4 }}>{t.body.length > 140 ? `${t.body.slice(0, 140)}…` : t.body}</div>
             <div className="sub" style={{ marginTop: 6 }}>
               {displayName(t.author)} &middot; {t.replyCount} repl{t.replyCount === 1 ? 'y' : 'ies'}
@@ -113,6 +117,7 @@ export function Community() {
 }
 
 function NewThreadForm({ onPosted }: { onPosted: () => void }) {
+  const { user } = useAuth();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<string>('General');
@@ -140,7 +145,7 @@ function NewThreadForm({ onPosted }: { onPosted: () => void }) {
 
       <label>Category</label>
       <select value={category} onChange={(e) => setCategory(e.target.value)}>
-        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
       </select>
 
       <label>Details</label>
@@ -209,7 +214,7 @@ function ThreadDetailView({ threadId, onBack }: { threadId: string; onBack: () =
       </div>
 
       <div className="plain-card">
-        {thread.category && <span className="match-badge">{thread.category}</span>}
+        {thread.category && <span className="match-badge">{categoryLabel(thread.category)}</span>}
         <div className="sub" style={{ marginTop: 6 }}>{displayName(thread.author)}</div>
         <p style={{ fontSize: 13.5, marginTop: 8 }}>{thread.body}</p>
         <div className="row" style={{ marginTop: 10 }}>
