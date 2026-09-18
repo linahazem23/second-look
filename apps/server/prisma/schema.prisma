@@ -367,6 +367,11 @@ model Appeal {
 model Ad {
   id         String   @id @default(cuid())
   slotType   String
+  // Targets one listing category (Skincare, Haircare, Makeup, Clothes,
+  // MomBaby) so brands relevant to that feed show there — a hair clinic in
+  // Haircare, a baby brand in Mom & Baby, etc. Null means "show for every
+  // category" (also the fallback when a category has no dedicated ad).
+  category   String?
   brand      String
   creativeUrl String?
   // Where tapping the card sends the buyer — the brand's site, a WhatsApp

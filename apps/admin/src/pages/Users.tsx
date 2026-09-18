@@ -13,6 +13,7 @@ interface AdminUserRow {
   completedSalesCount: number;
   flagCount: number;
   phoneNumber: string | null;
+  isMother: boolean;
   createdAt: string;
 }
 
@@ -20,6 +21,7 @@ export function Users() {
   const { admin } = useAdminAuth();
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [motherBusyId, setMotherBusyId] = useState<string | null>(null);
 
   function load() {
     api.get('/api/admin/users').then((res) => setUsers(res.users)).catch((err) => setError(friendlyError(err)));
@@ -45,15 +47,27 @@ export function Users() {
     }
   }
 
+  async function toggleMother(u: AdminUserRow) {
+    setMotherBusyId(u.id);
+    try {
+      await api.patch(`/api/admin/users/${u.id}/mother`, { isMother: !u.isMother });
+      setUsers((prev) => prev.map((row) => (row.id === u.id ? { ...row, isMother: !row.isMother } : row)));
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setMotherBusyId(null);
+    }
+  }
+
   return (
     <>
       <div className="page-head"><h1>Users</h1><p>Standing, order history, and flags</p></div>
       {error && <p className="login-err">{error}</p>}
       <div className="panel">
         <table>
-          <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Completed sales</th><th>Flags</th><th>Standing</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Phone</th><th>Joined</th><th>Completed sales</th><th>Flags</th><th>Standing</th><th>Mom</th><th></th></tr></thead>
           <tbody>
-            {users.length === 0 && !error && <tr className="empty-row"><td colSpan={7}>No users yet</td></tr>}
+            {users.length === 0 && !error && <tr className="empty-row"><td colSpan={8}>No users yet</td></tr>}
             {users.map((u) => (
               <tr key={u.id}>
                 <td>{u.fullName}<div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>{u.email}</div></td>
@@ -62,6 +76,11 @@ export function Users() {
                 <td>{u.completedSalesCount}</td>
                 <td>{u.flagCount}</td>
                 <td><Pill value={standing(u)} /></td>
+                <td>
+                  <button className={`btn small ${u.isMother ? '' : 'ghost'}`} disabled={motherBusyId === u.id} onClick={() => toggleMother(u)}>
+                    {u.isMother ? '🤍 Yes' : 'No'}
+                  </button>
+                </td>
                 <td>
                   {admin?.role === 'super_admin' && u.status !== 'Blocked' && (
                     <button className="btn ghost" onClick={() => immediateBlock(u)}>Immediate block</button>

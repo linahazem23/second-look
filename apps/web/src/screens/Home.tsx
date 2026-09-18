@@ -113,8 +113,8 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   const [activeAd, setActiveAd] = useState<ActiveAd | null>(null);
 
   useEffect(() => {
-    api.get('/api/ads/active?slotType=in_feed_sponsored_card').then((res) => setActiveAd(res.ad)).catch(() => {});
-  }, []);
+    api.get(`/api/ads/active?slotType=in_feed_sponsored_card&category=${encodeURIComponent(category)}`).then((res) => setActiveAd(res.ad)).catch(() => {});
+  }, [category]);
 
   const activeFilterCount = [sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter, hairTypeFilter].filter(Boolean).length + (allowOffersOnly ? 1 : 0);
 

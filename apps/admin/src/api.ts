@@ -36,7 +36,8 @@ async function request(path: string, options: RequestInit = {}) {
 
 export const api = {
   get: (path: string) => request(path),
-  post: (path: string, data?: unknown) => request(path, { method: 'POST', body: data ? JSON.stringify(data) : undefined })
+  post: (path: string, data?: unknown) => request(path, { method: 'POST', body: data ? JSON.stringify(data) : undefined }),
+  patch: (path: string, data?: unknown) => request(path, { method: 'PATCH', body: data ? JSON.stringify(data) : undefined })
 };
 
 export function friendlyError(err: unknown): string {

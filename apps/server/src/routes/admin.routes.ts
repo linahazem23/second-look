@@ -115,9 +115,20 @@ adminRouter.get('/users', async (req, res) => {
       completedSalesCount: u.completedSalesCount,
       flagCount: u.flagCount,
       phoneNumber: u.phoneNumber,
+      isMother: u.isMother,
       createdAt: u.createdAt
     }))
   });
+});
+
+// Lets an admin correct a signup mistake (or update it later) — a real
+// account change, not a moderation action, so any admin role can use it.
+adminRouter.patch('/users/:id/mother', async (req, res) => {
+  const parsed = z.object({ isMother: z.boolean() }).safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const user = await prisma.user.update({ where: { id: req.params.id }, data: { isMother: parsed.data.isMother } });
+  return res.json({ id: user.id, isMother: user.isMother });
 });
 
 // ---- KYC manual review queue ----
@@ -622,6 +633,7 @@ adminRouter.get('/ads', async (_req, res) => {
 
 const adSchema = z.object({
   slotType: z.enum(['top_banner', 'in_feed_sponsored_card']),
+  category: z.enum(['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby']).optional(),
   brand: z.string().min(1),
   creativeUrl: z.string().optional(),
   linkUrl: z.string().url().optional(),

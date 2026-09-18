@@ -2,9 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { Pill } from '../Pill.js';
 
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
+function categoryLabel(c: string): string {
+  return c === 'MomBaby' ? 'Mom & Baby' : c;
+}
+
 interface Ad {
   id: string;
   slotType: string;
+  category: string | null;
   brand: string;
   startDate: string;
   endDate: string;
@@ -18,6 +24,7 @@ export function Ads() {
 
   const [brand, setBrand] = useState('');
   const [slotType, setSlotType] = useState('top_banner');
+  const [category, setCategory] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [creativeUrl, setCreativeUrl] = useState('');
@@ -34,9 +41,9 @@ export function Ads() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post('/api/admin/ads', { brand, slotType, startDate, endDate, creativeUrl: creativeUrl || undefined, linkUrl: linkUrl || undefined });
+      await api.post('/api/admin/ads', { brand, slotType, category: category || undefined, startDate, endDate, creativeUrl: creativeUrl || undefined, linkUrl: linkUrl || undefined });
       setShowForm(false);
-      setBrand(''); setStartDate(''); setEndDate(''); setCreativeUrl(''); setLinkUrl('');
+      setBrand(''); setCategory(''); setStartDate(''); setEndDate(''); setCreativeUrl(''); setLinkUrl('');
       load();
     } catch (err) {
       setError(friendlyError(err));
@@ -61,6 +68,12 @@ export function Ads() {
               <option value="in_feed_sponsored_card">In-feed sponsored card</option>
             </select>
           </label>
+          <label className="field">Category (which feed this targets)
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="">All categories</option>
+              {CATEGORIES.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+            </select>
+          </label>
           <label className="field">Start date<input type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label>
           <label className="field">End date<input type="date" required value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
           <label className="field">Creative URL (optional)<input type="text" value={creativeUrl} onChange={(e) => setCreativeUrl(e.target.value)} /></label>
@@ -70,12 +83,13 @@ export function Ads() {
       )}
       <div className="panel">
         <table>
-          <thead><tr><th>Brand</th><th>Slot</th><th>Dates</th><th>Status</th></tr></thead>
+          <thead><tr><th>Brand</th><th>Slot</th><th>Category</th><th>Dates</th><th>Status</th></tr></thead>
           <tbody>
-            {ads.length === 0 && !error && <tr className="empty-row"><td colSpan={4}>No placements yet</td></tr>}
+            {ads.length === 0 && !error && <tr className="empty-row"><td colSpan={5}>No placements yet</td></tr>}
             {ads.map((a) => (
               <tr key={a.id}>
                 <td>{a.brand}</td><td>{a.slotType.replace(/_/g, ' ')}</td>
+                <td>{a.category ? categoryLabel(a.category) : 'All'}</td>
                 <td>{new Date(a.startDate).toLocaleDateString()} – {new Date(a.endDate).toLocaleDateString()}</td>
                 <td><Pill value={a.status} /></td>
               </tr>
