@@ -31,20 +31,13 @@ interface ProductReview {
   notes: string | null;
 }
 
-export function Reviews({ onBack, guest, onNeedAuth }: { onBack?: () => void; guest?: boolean; onNeedAuth?: () => void }) {
+export function Reviews({ onBack }: { onBack?: () => void }) {
   const [tab, setTab] = useState<'products' | 'received' | 'given'>('products');
   const [openProduct, setOpenProduct] = useState<string | null>(null);
   const [showLeaveReview, setShowLeaveReview] = useState(false);
 
   if (openProduct) {
-    return (
-      <ProductDetail
-        productIdentity={openProduct}
-        onBack={() => setOpenProduct(null)}
-        guest={guest}
-        onNeedAuth={onNeedAuth}
-      />
-    );
+    return <ProductDetail productIdentity={openProduct} onBack={() => setOpenProduct(null)} />;
   }
 
   return (
@@ -58,14 +51,14 @@ export function Reviews({ onBack, guest, onNeedAuth }: { onBack?: () => void; gu
       </div>
       <div className="cat-toggle">
         <button className={tab === 'products' ? 'active' : ''} onClick={() => setTab('products')}>Products</button>
-        {!guest && <button className={tab === 'received' ? 'active' : ''} onClick={() => setTab('received')}>Received</button>}
-        {!guest && <button className={tab === 'given' ? 'active' : ''} onClick={() => setTab('given')}>Left by you</button>}
+        <button className={tab === 'received' ? 'active' : ''} onClick={() => setTab('received')}>Received</button>
+        <button className={tab === 'given' ? 'active' : ''} onClick={() => setTab('given')}>Left by you</button>
       </div>
 
       {tab === 'products' ? (
         <ProductList
           showLeaveReview={showLeaveReview}
-          onToggleLeaveReview={() => (guest ? onNeedAuth?.() : setShowLeaveReview((v) => !v))}
+          onToggleLeaveReview={() => setShowLeaveReview((v) => !v)}
           onOpen={setOpenProduct}
         />
       ) : (
@@ -178,7 +171,7 @@ function CommunityReviewForm({ productIdentity: initialProduct, onDone }: { prod
   );
 }
 
-function ProductDetail({ productIdentity, onBack, guest, onNeedAuth }: { productIdentity: string; onBack: () => void; guest?: boolean; onNeedAuth?: () => void }) {
+function ProductDetail({ productIdentity, onBack }: { productIdentity: string; onBack: () => void }) {
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -203,7 +196,7 @@ function ProductDetail({ productIdentity, onBack, guest, onNeedAuth }: { product
         </div>
       </div>
       <div style={{ margin: '0 18px 12px' }}>
-        <button className="btn-outline" onClick={() => (guest ? onNeedAuth?.() : setShowLeaveReview((v) => !v))}>
+        <button className="btn-outline" onClick={() => setShowLeaveReview((v) => !v)}>
           {showLeaveReview ? 'Cancel' : '+ Leave a review'}
         </button>
       </div>

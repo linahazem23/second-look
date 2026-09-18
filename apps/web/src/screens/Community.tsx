@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
 import { displayName } from '../identity.js';
-import { useAuth } from '../AuthContext.js';
 
-const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby', 'General'] as const;
+// MomBaby is deliberately absent here — Mom Talk is its own dedicated space
+// (rendered via CommunityHub), not a chip mixed into the general composer.
+const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'General'] as const;
 function categoryLabel(c: string): string {
   return c === 'MomBaby' ? 'Mom & Baby' : c;
 }
@@ -38,7 +39,7 @@ interface ThreadDetail extends Omit<ThreadSummary, 'replyCount'> {
   replies: Reply[];
 }
 
-export function Community() {
+export function Community({ category, title }: { category?: string; title?: string } = {}) {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +48,14 @@ export function Community() {
 
   function load() {
     setLoading(true);
-    api.get('/api/community')
+    const qs = category ? `?category=${encodeURIComponent(category)}` : '';
+    api.get(`/api/community${qs}`)
       .then((res) => setThreads(res.threads))
       .catch((err) => setError(friendlyError(err)))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(load, [category]);
 
   async function toggleWatch(id: string) {
     setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, iAmWatching: !t.iAmWatching, watcherCount: t.watcherCount + (t.iAmWatching ? -1 : 1) } : t)));
@@ -72,7 +74,7 @@ export function Community() {
   return (
     <>
       <div className="section-head">
-        <h1>Community</h1>
+        <h1>{title ?? 'Community'}</h1>
         <p>Ask each other for tips, product advice, or where to find something</p>
       </div>
 
@@ -82,7 +84,7 @@ export function Community() {
         </button>
       </div>
 
-      {showForm && <NewThreadForm onPosted={() => { setShowForm(false); load(); }} />}
+      {showForm && <NewThreadForm lockedCategory={category} onPosted={() => { setShowForm(false); load(); }} />}
 
       {error && <p className="field-error" style={{ margin: '0 18px 10px' }}>{error}</p>}
       {loading && <div className="empty-state">Loading…</div>}
@@ -116,8 +118,7 @@ export function Community() {
   );
 }
 
-function NewThreadForm({ onPosted }: { onPosted: () => void }) {
-  const { user } = useAuth();
+function NewThreadForm({ lockedCategory, onPosted }: { lockedCategory?: string; onPosted: () => void }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<string>('General');
@@ -129,7 +130,7 @@ function NewThreadForm({ onPosted }: { onPosted: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await api.post('/api/community', { title: title.trim(), body: body.trim(), category });
+      await api.post('/api/community', { title: title.trim(), body: body.trim(), category: lockedCategory ?? category });
       onPosted();
     } catch (err) {
       setError(friendlyError(err));
@@ -143,10 +144,14 @@ function NewThreadForm({ onPosted }: { onPosted: () => void }) {
       <label>What do you want to ask?</label>
       <input required placeholder="e.g. Best toner for oily skin?" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={140} />
 
-      <label>Category</label>
-      <select value={category} onChange={(e) => setCategory(e.target.value)}>
-        {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
-      </select>
+      {!lockedCategory && (
+        <>
+          <label>Category</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            {CATEGORIES.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+          </select>
+        </>
+      )}
 
       <label>Details</label>
       <textarea required rows={4} placeholder="Give people enough to actually help you" value={body} onChange={(e) => setBody(e.target.value)} maxLength={4000} />

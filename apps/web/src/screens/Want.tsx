@@ -8,6 +8,10 @@ const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as c
 function categoryLabel(c: string): string {
   return c === 'MomBaby' ? 'Mom & Baby' : c;
 }
+function visibleCategories(isMother: boolean | undefined): string[] {
+  const visible = CATEGORIES.filter((c) => c !== 'MomBaby' || isMother);
+  return isMother ? ['MomBaby', ...visible.filter((c) => c !== 'MomBaby')] : visible;
+}
 
 interface WantRequest {
   id: string;
@@ -27,7 +31,7 @@ export function Want() {
   const [showForm, setShowForm] = useState(false);
 
   const [itemName, setItemName] = useState('');
-  const [category, setCategory] = useState<string>('Skincare');
+  const [category, setCategory] = useState<string>(() => (user?.isMother ? 'MomBaby' : 'Skincare'));
   const [area, setArea] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -138,7 +142,7 @@ export function Want() {
           <input required placeholder="e.g. Green clay mask" value={itemName} onChange={(e) => setItemName(e.target.value)} />
           <label>Category</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+            {visibleCategories(user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
           </select>
           <label>Area</label>
           <LocationAreaField value={area} onChange={setArea} />

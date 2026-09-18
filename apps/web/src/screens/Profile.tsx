@@ -13,6 +13,10 @@ const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as c
 function categoryLabel(c: string): string {
   return c === 'MomBaby' ? 'Mom & Baby' : c;
 }
+function visibleCategories(isMother: boolean | undefined): string[] {
+  const visible = CATEGORIES.filter((c) => c !== 'MomBaby' || isMother);
+  return isMother ? ['MomBaby', ...visible.filter((c) => c !== 'MomBaby')] : visible;
+}
 const CONDITIONS = [
   { value: 'NeverUsed', label: 'Never used' },
   { value: 'UsedOnce', label: 'Used once' },
@@ -343,7 +347,7 @@ function EditListingForm({ listing, onDone, onCancel }: { listing: MyListing; on
 
       <label>Category</label>
       <select value={category} onChange={(e) => setCategory(e.target.value)}>
-        {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+        {visibleCategories(user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
       </select>
 
       {category === 'Clothes' && (

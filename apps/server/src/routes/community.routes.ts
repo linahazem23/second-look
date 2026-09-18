@@ -13,11 +13,19 @@ const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby', 'Gen
 const AUTHOR_SELECT = { id: true, fullName: true, username: true } as const;
 
 // Public — reading consultations doesn't require an account, same as browsing listings.
+// Mom Talk is a fully separate space (see CommunityHub client-side) — the
+// general/unfiltered feed excludes MomBaby threads even for a mother; she
+// only sees them via an explicit ?category=MomBaby request.
 communityRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
+  const { category } = req.query as { category?: string };
   const me = req.userId ? await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } }) : null;
 
+  if (category === 'MomBaby' && !me?.isMother) {
+    return res.json({ threads: [] });
+  }
+
   const threads = await prisma.communityThread.findMany({
-    where: me?.isMother ? {} : { category: { not: 'MomBaby' } },
+    where: category ? { category } : { category: { not: 'MomBaby' } },
     orderBy: { createdAt: 'desc' },
     include: {
       author: { select: AUTHOR_SELECT },

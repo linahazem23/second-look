@@ -11,11 +11,16 @@ import { displayName } from '../identity.js';
 import { maxAllowedPrice } from '../pricing.js';
 
 const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
-const BROWSE_CATEGORIES = ['All', ...CATEGORIES] as const;
 // "MomBaby" is the enum value everywhere else in the app, but reads oddly as a
 // label — this is the only place a human sees it, so it gets a friendly name.
 function categoryLabel(c: string): string {
   return c === 'MomBaby' ? 'Mom & Baby' : c;
+}
+// Non-mothers never see Mom & Baby at all; a mother sees it sorted first
+// wherever a category list renders.
+function visibleCategories(categories: readonly string[], isMother: boolean | undefined): string[] {
+  const visible = categories.filter((c) => c !== 'MomBaby' || isMother);
+  return isMother ? ['MomBaby', ...visible.filter((c) => c !== 'MomBaby')] : visible;
 }
 const SELL_REMINDER_KEY_PREFIX = 'sl_sell_reminder_';
 const CONDITIONS = [
@@ -244,14 +249,14 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
 
   return (
     <>
-      <p className="home-greeting">Hiii Bestie</p>
+      <p className="home-greeting">{user?.isMother ? 'Hiii Mamasita ✨' : 'Hiii Bestie'}</p>
       <div className="section-head">
         <h1>For you</h1>
         <p>Skincare, makeup, haircare, and clothes from verified sellers</p>
       </div>
 
       <div className="cat-toggle">
-        {BROWSE_CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => (
+        {['All', ...visibleCategories(CATEGORIES, user?.isMother)].map((c) => (
           <button key={c} className={category === c ? 'active' : ''} onClick={() => setCategory(c)}>
             {categoryLabel(c)}
           </button>
@@ -703,7 +708,7 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
 function SellForm({ onPosted }: { onPosted: () => void }) {
   const { user } = useAuth();
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<string>('Skincare');
+  const [category, setCategory] = useState<string>(() => (user?.isMother ? 'MomBaby' : 'Skincare'));
   const [originalPrice, setOriginalPrice] = useState('');
   const [price, setPrice] = useState('');
   const [reasonForSelling, setReasonForSelling] = useState('');
@@ -766,7 +771,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
 
       <label>Category</label>
       <select value={category} onChange={(e) => setCategory(e.target.value)}>
-        {CATEGORIES.filter((c) => c !== 'MomBaby' || user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
+        {visibleCategories(CATEGORIES, user?.isMother).map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
       </select>
 
       {category === 'Clothes' && (
