@@ -5,6 +5,7 @@ import { Icon } from '../Icon.js';
 import { ProductReviewForm, PersonReviewForm } from './ReviewForms.js';
 import { uploadFile } from '../ImageUpload.js';
 import { displayName } from '../identity.js';
+import { DeliveryFeedbackModal } from './DeliveryFeedbackModal.js';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   AwaitingPayment: 'Waiting for payment',
@@ -496,6 +497,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
   const [showTrackingInput, setShowTrackingInput] = useState(false);
   const [trackingUrl, setTrackingUrl] = useState('');
   const [showMonetizationPrompt, setShowMonetizationPrompt] = useState(false);
+  const [showDeliveryFeedback, setShowDeliveryFeedback] = useState(false);
   const [sosBusy, setSosBusy] = useState(false);
 
   async function loadAll() {
@@ -576,6 +578,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
     try {
       const res = await api.post(`/api/orders/${orderId}/confirm-delivery`);
       if (res.offerMonetizationChoice) setShowMonetizationPrompt(true);
+      setShowDeliveryFeedback(true);
       loadAll();
     } catch (err) {
       setError(friendlyError(err));
@@ -763,6 +766,10 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
           {isBuyer && <ProductReviewForm orderId={order.id} onDone={loadAll} />}
           <PersonReviewForm orderId={order.id} onDone={loadAll} />
         </>
+      )}
+
+      {showDeliveryFeedback && (
+        <DeliveryFeedbackModal orderId={order.id} onClose={() => setShowDeliveryFeedback(false)} />
       )}
 
       <div className="messages">

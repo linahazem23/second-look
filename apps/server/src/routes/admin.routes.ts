@@ -600,6 +600,20 @@ adminRouter.get('/feedback', async (_req, res) => {
   });
 });
 
+// ---- Post-delivery feedback (immediate pulse-check, separate from Reviews) ----
+adminRouter.get('/delivery-feedback', async (_req, res) => {
+  const feedback = await prisma.deliveryFeedback.findMany({ orderBy: { createdAt: 'desc' } });
+  const orderIds = [...new Set(feedback.map((f) => f.orderId))];
+  const orders = await prisma.order.findMany({
+    where: { id: { in: orderIds } },
+    include: { buyer: { select: { fullName: true, username: true } }, listing: { select: { title: true } } }
+  });
+  const orderById = new Map(orders.map((o) => [o.id, o]));
+  return res.json({
+    feedback: feedback.map((f) => ({ ...f, order: orderById.get(f.orderId) ?? null }))
+  });
+});
+
 // ---- Ads ----
 adminRouter.get('/ads', async (_req, res) => {
   const ads = await prisma.ad.findMany({ orderBy: { startDate: 'desc' } });

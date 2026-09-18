@@ -21,8 +21,9 @@ import { KycQueue } from './pages/KycQueue.js';
 import { GuardianConsentQueue } from './pages/GuardianConsentQueue.js';
 import { Growth } from './pages/Growth.js';
 import { Feedback } from './pages/Feedback.js';
+import { DeliveryFeedback } from './pages/DeliveryFeedback.js';
 
-type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'support' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'guardian' | 'growth' | 'feedback';
+type Page = 'overview' | 'users' | 'listings' | 'reports' | 'orders' | 'moderation' | 'chats' | 'support' | 'appeals' | 'reviews' | 'ads' | 'admins' | 'kyc' | 'guardian' | 'growth' | 'feedback' | 'deliveryFeedback';
 
 const NAV: { id: Page; label: string; icon: Parameters<typeof Icon>[0]['name']; superAdminOnly?: boolean }[] = [
   { id: 'overview', label: 'Overview', icon: 'overview' },
@@ -37,6 +38,7 @@ const NAV: { id: Page; label: string; icon: Parameters<typeof Icon>[0]['name']; 
   { id: 'support', label: 'Support inbox', icon: 'chats' },
   { id: 'appeals', label: 'Appeals', icon: 'appeals' },
   { id: 'reviews', label: 'Reviews', icon: 'reviews' },
+  { id: 'deliveryFeedback', label: 'Delivery feedback', icon: 'reviews' },
   { id: 'growth', label: 'Growth', icon: 'reviews' },
   { id: 'feedback', label: 'App feedback', icon: 'reviews' },
   { id: 'ads', label: 'Ads', icon: 'ads', superAdminOnly: true },
@@ -105,6 +107,7 @@ export function App() {
             {page === 'support' && <SupportInbox />}
             {page === 'appeals' && <Appeals />}
             {page === 'reviews' && <Reviews />}
+            {page === 'deliveryFeedback' && <DeliveryFeedback />}
             {page === 'growth' && <Growth />}
             {page === 'feedback' && <Feedback />}
             {page === 'ads' && isSuperAdmin && <Ads />}

@@ -188,6 +188,33 @@ ordersRouter.post('/:id/confirm-delivery', requireAuth, async (req: AuthedReques
   return res.json({ order: updatedOrder, offerMonetizationChoice });
 });
 
+const CONDITION_RATINGS = ['as_described', 'slightly_different', 'not_as_described'] as const;
+const deliveryFeedbackSchema = z.object({
+  conditionRating: z.enum(CONDITION_RATINGS),
+  comment: z.string().max(1000).optional()
+});
+
+// A quick, immediate pulse-check right after confirming delivery — separate
+// from the considered, 6-day-locked Review. Upserted by orderId so a resubmit
+// just overwrites rather than erroring.
+ordersRouter.post('/:id/delivery-feedback', requireAuth, async (req: AuthedRequest, res) => {
+  const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.buyerId !== req.userId) return res.status(403).json({ error: 'Only the buyer can leave delivery feedback' });
+  if (!order.deliveryConfirmed) return res.status(409).json({ error: 'Delivery must be confirmed first' });
+
+  const parsed = deliveryFeedbackSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const feedback = await prisma.deliveryFeedback.upsert({
+    where: { orderId: order.id },
+    update: { conditionRating: parsed.data.conditionRating, comment: parsed.data.comment },
+    create: { orderId: order.id, buyerId: req.userId!, conditionRating: parsed.data.conditionRating, comment: parsed.data.comment }
+  });
+
+  return res.status(201).json({ feedback });
+});
+
 // Mirrors the same escalation on an inquiry — opens a moderation case and
 // drops a system notice into the order's own chat so admin can reply directly
 // into it (as 'admin') once they pick up the case.
