@@ -76,6 +76,14 @@ export function App() {
     contentRef.current?.scrollTo(0, 0);
   }, [tab, menuView, viewingProfileId]);
 
+  // A successful login/signup only updates `user` — nothing else clears the
+  // authPrompt that put the Auth screen up, so without this the app kept
+  // rendering the login form after "Log in" succeeded, only landing on Home
+  // after a full reload (which resets authPrompt to null on mount).
+  useEffect(() => {
+    if (user) setAuthPrompt(null);
+  }, [user]);
+
   // Lets a "you have a new message" email link (?order=<id>, ?inquiry=<id>, or
   // ?support=1 for a support reply) drop the user straight into that
   // conversation instead of the home feed.
