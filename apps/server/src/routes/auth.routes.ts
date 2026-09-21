@@ -12,6 +12,8 @@ export const authRouter = Router();
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
 const PHONE_PATTERN = /^\+?[0-9]{8,15}$/;
 const MINOR_AGE_THRESHOLD = 18;
+// Must match GUIDELINE_SLIDES.length in apps/web/src/screens/Onboarding.tsx.
+const GUIDELINE_SLIDE_COUNT = 5;
 
 const signupSchema = z
   .object({
@@ -215,7 +217,7 @@ authRouter.get('/me', requireAuth, async (req: AuthedRequest, res) => {
   return res.json({
     user: {
       ...safe,
-      guidelinesComplete: acceptedSlideCount === 4,
+      guidelinesComplete: acceptedSlideCount === GUIDELINE_SLIDE_COUNT,
       profileQuizComplete: Boolean(user.skinType && user.hairType),
       isPlusActive: isPlusActive(user)
     }
@@ -288,13 +290,13 @@ authRouter.post('/kyc/submit', requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ kycStatus: user.kycStatus, verifiedFemale: user.verifiedFemale });
 });
 
-const guidelineSlideSchema = z.object({ slideIndex: z.number().int().min(0).max(3) });
+const guidelineSlideSchema = z.object({ slideIndex: z.number().int().min(0).max(GUIDELINE_SLIDE_COUNT - 1) });
 
 authRouter.post('/guidelines/accept-slide', requireAuth, async (req: AuthedRequest, res) => {
   const parsed = guidelineSlideSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  // Each of the 4 slides is logged individually with its own timestamp — this is
+  // Each slide is logged individually with its own timestamp — this is
   // the evidence trail referenced in the chat-monitoring disclosure requirement.
   const acceptance = await prisma.guidelineAcceptance.upsert({
     where: { userId_slideIndex: { userId: req.userId!, slideIndex: parsed.data.slideIndex } },
@@ -303,5 +305,5 @@ authRouter.post('/guidelines/accept-slide', requireAuth, async (req: AuthedReque
   });
 
   const totalAccepted = await prisma.guidelineAcceptance.count({ where: { userId: req.userId } });
-  return res.status(201).json({ acceptance, allFourSlidesComplete: totalAccepted === 4 });
+  return res.status(201).json({ acceptance, allSlidesComplete: totalAccepted === GUIDELINE_SLIDE_COUNT });
 });

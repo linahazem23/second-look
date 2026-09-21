@@ -18,6 +18,10 @@ const GUIDELINE_SLIDES = [
   {
     title: 'Report, don’t retaliate',
     body: 'If something feels off, report it. Harassment or threats lead to an immediate block.'
+  },
+  {
+    title: 'Second Look is a marketplace, not the seller',
+    body: 'We connect buyers and sellers — we don’t make, stock, or ship the items. We do our best to build a trustworthy community: manual ID verification, an in-chat SOS button, and a post-delivery review on every order, so quality stays in check.'
   }
 ];
 
@@ -364,7 +368,7 @@ export function GuidelinesGate({ onDone }: { onDone: () => void }) {
     try {
       const res = await api.post('/api/auth/guidelines/accept-slide', { slideIndex });
       setAgreedThisSlide(false);
-      if (res.allFourSlidesComplete) {
+      if (res.allSlidesComplete) {
         setShowHowTo(true);
       } else {
         setSlideIndex((i) => i + 1);

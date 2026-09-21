@@ -495,7 +495,8 @@ const GUIDELINE_TEXT = [
   ['Second Look is women-only', 'Every member is identity-verified. Be part of keeping this space safe and honest.'],
   ['Chats may be reviewed', 'For everyone’s safety, our moderation team can review conversations at any time.'],
   ['Be honest in listings and reviews', 'Describe items accurately, and only review real, completed orders.'],
-  ['Report, don’t retaliate', 'If something feels off, report it. Harassment or threats lead to an immediate block.']
+  ['Report, don’t retaliate', 'If something feels off, report it. Harassment or threats lead to an immediate block.'],
+  ['Second Look is a marketplace, not the seller', 'We connect buyers and sellers — we don’t make, stock, or ship the items. We do our best to build a trustworthy community: manual ID verification, an in-chat SOS button, and a post-delivery review on every order, so quality stays in check.']
 ];
 
 function GuidelinesView({ onBack, onContactSupport }: { onBack: () => void; onContactSupport: () => void }) {
