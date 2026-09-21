@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { Order } from '@prisma/client';
 import { prisma } from '../lib/db.js';
-import { requireAuth, type AuthedRequest } from '../lib/auth.js';
+import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
 
 export const reviewsRouter = Router();
@@ -13,7 +13,8 @@ const communityReviewSchema = z.object({
   productIdentity: z.string().min(1),
   starRating: z.number().int().min(1).max(5),
   photoUrls: z.array(z.string().min(1)).max(6).default([]),
-  notes: z.string().max(2000).optional()
+  notes: z.string().max(2000).optional(),
+  category: z.enum(['MomBaby']).optional()
 });
 
 // Open to any verified member instantly — no purchase or order required, unlike
@@ -23,13 +24,19 @@ reviewsRouter.post('/community', requireAuth, requireVerified, async (req: Authe
   const parsed = communityReviewSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
 
+  if (parsed.data.category === 'MomBaby') {
+    const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } });
+    if (!me?.isMother) return res.status(403).json({ error: 'Only mothers can post a Mom & Baby review.' });
+  }
+
   const review = await prisma.communityProductReview.create({
     data: {
       authorId: req.userId!,
       productIdentity: parsed.data.productIdentity,
       starRating: parsed.data.starRating,
       photoUrls: parsed.data.photoUrls,
-      notes: parsed.data.notes
+      notes: parsed.data.notes,
+      category: parsed.data.category
     }
   });
 
@@ -174,13 +181,35 @@ function normalizeCommunityReview(r: { id: string; starRating: number; notes: st
   };
 }
 
-reviewsRouter.get('/products', async (req, res) => {
+// A verified-purchase review has no category of its own — it inherits the
+// category of the listing the order was for. General (no category param)
+// excludes Mom & Baby from both sources; category=MomBaby shows only it,
+// and only to a mother (mirrors the listings/demand/community hide pattern).
+async function reviewCategoryFilters(req: AuthedRequest, category?: string) {
+  if (category === 'MomBaby') {
+    const me = req.userId ? await prisma.user.findUnique({ where: { id: req.userId }, select: { isMother: true } }) : null;
+    if (!me?.isMother) return null;
+    return { orderReview: { order: { listing: { category: 'MomBaby' as const } } }, community: { category: 'MomBaby' } };
+  }
+  // CommunityProductReview.category is nullable — a plain "not MomBaby" filter would
+  // silently drop every uncategorized (null) row too, since SQL's `<> 'MomBaby'`
+  // treats NULL as unknown rather than true. Explicitly include null here.
+  return {
+    orderReview: { order: { listing: { category: { not: 'MomBaby' as const } } } },
+    community: { OR: [{ category: null }, { category: { not: 'MomBaby' } }] }
+  };
+}
+
+reviewsRouter.get('/products', optionalAuth, async (req: AuthedRequest, res) => {
   const q = (req.query.q as string | undefined)?.trim();
   const productFilter = q ? { productIdentity: { contains: q, mode: 'insensitive' as const } } : {};
 
+  const filters = await reviewCategoryFilters(req, req.query.category as string | undefined);
+  if (!filters) return res.json({ products: [] });
+
   const [orderReviews, communityReviews] = await Promise.all([
-    prisma.review.findMany({ where: { type: 'Product', ...productFilter }, orderBy: { createdAt: 'desc' } }),
-    prisma.communityProductReview.findMany({ where: productFilter, orderBy: { createdAt: 'desc' } })
+    prisma.review.findMany({ where: { type: 'Product', ...productFilter, ...filters.orderReview }, orderBy: { createdAt: 'desc' } }),
+    prisma.communityProductReview.findMany({ where: { ...productFilter, ...filters.community }, orderBy: { createdAt: 'desc' } })
   ]);
 
   type NormalizedReview = ReturnType<typeof normalizeOrderReview> | ReturnType<typeof normalizeCommunityReview>;
@@ -209,16 +238,19 @@ reviewsRouter.get('/products', async (req, res) => {
   return res.json({ products });
 });
 
-reviewsRouter.get('/product', async (req, res) => {
+reviewsRouter.get('/product', optionalAuth, async (req: AuthedRequest, res) => {
   const productIdentity = req.query.productIdentity as string | undefined;
   if (!productIdentity) return res.status(400).json({ error: 'productIdentity query param is required' });
+
+  const filters = await reviewCategoryFilters(req, req.query.category as string | undefined);
+  if (!filters) return res.json({ productIdentity, reviews: [], avgRating: null, count: 0 });
 
   // All reviews for a given canonical product share one pool, regardless of which
   // listing/seller (or no listing at all) they came from — this is the aggregation
   // the fuzzy-matched product-identity field exists to support.
   const [orderReviews, communityReviews] = await Promise.all([
-    prisma.review.findMany({ where: { type: 'Product', productIdentity }, orderBy: { createdAt: 'desc' } }),
-    prisma.communityProductReview.findMany({ where: { productIdentity }, orderBy: { createdAt: 'desc' } })
+    prisma.review.findMany({ where: { type: 'Product', productIdentity, ...filters.orderReview }, orderBy: { createdAt: 'desc' } }),
+    prisma.communityProductReview.findMany({ where: { productIdentity, ...filters.community }, orderBy: { createdAt: 'desc' } })
   ]);
 
   const reviews = [...orderReviews.map(normalizeOrderReview), ...communityReviews.map(normalizeCommunityReview)]

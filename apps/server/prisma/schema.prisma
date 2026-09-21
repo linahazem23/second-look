@@ -315,6 +315,9 @@ model CommunityProductReview {
   starRating      Int
   photoUrls       String[]
   notes           String?
+  // Set only for a Mom & Baby product review, posted from the mother-only
+  // Reviews space — null means it belongs to the general pool everyone sees.
+  category        String?
   createdAt       DateTime @default(now())
 }
 

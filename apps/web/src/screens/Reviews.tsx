@@ -31,13 +31,13 @@ interface ProductReview {
   notes: string | null;
 }
 
-export function Reviews({ onBack }: { onBack?: () => void }) {
+export function Reviews({ onBack, category, title }: { onBack?: () => void; category?: string; title?: string }) {
   const [tab, setTab] = useState<'products' | 'received' | 'given'>('products');
   const [openProduct, setOpenProduct] = useState<string | null>(null);
   const [showLeaveReview, setShowLeaveReview] = useState(false);
 
   if (openProduct) {
-    return <ProductDetail productIdentity={openProduct} onBack={() => setOpenProduct(null)} />;
+    return <ProductDetail productIdentity={openProduct} category={category} onBack={() => setOpenProduct(null)} />;
   }
 
   return (
@@ -45,7 +45,7 @@ export function Reviews({ onBack }: { onBack?: () => void }) {
       <div className="section-head">
         {onBack && <button className="back-btn" onClick={onBack}><Icon name="arrowLeft" size={18} /></button>}
         <div>
-          <h1 style={{ fontSize: 19 }}>Reviews</h1>
+          <h1 style={{ fontSize: 19 }}>{title ?? 'Reviews'}</h1>
           <p>Product reviews from the community, plus your own trust ratings</p>
         </div>
       </div>
@@ -57,6 +57,7 @@ export function Reviews({ onBack }: { onBack?: () => void }) {
 
       {tab === 'products' ? (
         <ProductList
+          category={category}
           showLeaveReview={showLeaveReview}
           onToggleLeaveReview={() => setShowLeaveReview((v) => !v)}
           onOpen={setOpenProduct}
@@ -69,10 +70,12 @@ export function Reviews({ onBack }: { onBack?: () => void }) {
 }
 
 function ProductList({
+  category,
   showLeaveReview,
   onToggleLeaveReview,
   onOpen
 }: {
+  category?: string;
   showLeaveReview: boolean;
   onToggleLeaveReview: () => void;
   onOpen: (productIdentity: string) => void;
@@ -85,12 +88,15 @@ function ProductList({
 
   useEffect(() => {
     setLoading(true);
-    const params = q ? `?q=${encodeURIComponent(q)}` : '';
-    api.get(`/api/reviews/products${params}`)
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category) params.set('category', category);
+    const qs = params.toString();
+    api.get(`/api/reviews/products${qs ? `?${qs}` : ''}`)
       .then((res) => setProducts(res.products))
       .catch((err) => setError(friendlyError(err)))
       .finally(() => setLoading(false));
-  }, [q, refreshKey]);
+  }, [q, category, refreshKey]);
 
   return (
     <>
@@ -104,6 +110,7 @@ function ProductList({
       </div>
       {showLeaveReview && (
         <CommunityReviewForm
+          category={category}
           onDone={() => { onToggleLeaveReview(); setRefreshKey((k) => k + 1); }}
         />
       )}
@@ -124,7 +131,7 @@ function ProductList({
   );
 }
 
-function CommunityReviewForm({ productIdentity: initialProduct, onDone }: { productIdentity?: string; onDone: () => void }) {
+function CommunityReviewForm({ productIdentity: initialProduct, category, onDone }: { productIdentity?: string; category?: string; onDone: () => void }) {
   const [productIdentity, setProductIdentity] = useState(initialProduct ?? '');
   const [starRating, setStarRating] = useState(5);
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
@@ -137,7 +144,7 @@ function CommunityReviewForm({ productIdentity: initialProduct, onDone }: { prod
     setBusy(true);
     setError(null);
     try {
-      await api.post('/api/reviews/community', { productIdentity, starRating, photoUrls, notes: notes || undefined });
+      await api.post('/api/reviews/community', { productIdentity, starRating, photoUrls, notes: notes || undefined, category });
       onDone();
     } catch (err) {
       setError(friendlyError(err));
@@ -171,7 +178,7 @@ function CommunityReviewForm({ productIdentity: initialProduct, onDone }: { prod
   );
 }
 
-function ProductDetail({ productIdentity, onBack }: { productIdentity: string; onBack: () => void }) {
+function ProductDetail({ productIdentity, category, onBack }: { productIdentity: string; category?: string; onBack: () => void }) {
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -180,11 +187,13 @@ function ProductDetail({ productIdentity, onBack }: { productIdentity: string; o
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    api.get(`/api/reviews/product?productIdentity=${encodeURIComponent(productIdentity)}`)
+    const params = new URLSearchParams({ productIdentity });
+    if (category) params.set('category', category);
+    api.get(`/api/reviews/product?${params.toString()}`)
       .then((res) => { setReviews(res.reviews); setAvgRating(res.avgRating); })
       .catch((err) => setError(friendlyError(err)))
       .finally(() => setLoading(false));
-  }, [productIdentity, refreshKey]);
+  }, [productIdentity, category, refreshKey]);
 
   return (
     <>
@@ -203,6 +212,7 @@ function ProductDetail({ productIdentity, onBack }: { productIdentity: string; o
       {showLeaveReview && (
         <CommunityReviewForm
           productIdentity={productIdentity}
+          category={category}
           onDone={() => { setShowLeaveReview(false); setRefreshKey((k) => k + 1); }}
         />
       )}

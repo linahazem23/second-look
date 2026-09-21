@@ -8,6 +8,7 @@ import { Home } from './screens/Home.js';
 import { WantHub } from './screens/WantHub.js';
 import { Chat } from './screens/Chat.js';
 import { Reviews } from './screens/Reviews.js';
+import { ReviewsHub } from './screens/ReviewsHub.js';
 import { Community } from './screens/Community.js';
 import { CommunityHub } from './screens/CommunityHub.js';
 import { Profile } from './screens/Profile.js';
@@ -32,21 +33,6 @@ function GuestGate({ what, onSignup, onLogin }: { what: string; onSignup: () => 
           <button className="btn-solid" onClick={onSignup}><span className="shine" /><span className="label">Create account</span></button>
           <button className="btn-outline" onClick={onLogin}>Log in</button>
         </div>
-      </div>
-    </>
-  );
-}
-
-/** Shown to a logged-in, non-mother user for a mother-exclusive section — informational only, no action needed. */
-function MothersOnlyGate({ what }: { what: string }) {
-  return (
-    <>
-      <div className="section-head">
-        <h1>{what}</h1>
-      </div>
-      <div className="plain-card">
-        <h3>This is a mom-only space right now 🤍</h3>
-        <div className="sub">{what} isn't available on your account.</div>
       </div>
     </>
   );
@@ -279,13 +265,13 @@ export function App() {
               )
             )}
             {tab === 'reviews' && (
-              !user ? (
+              user ? (user.isMother ? <ReviewsHub /> : <Reviews />) : (
                 <GuestGate
                   what="Reviews"
                   onSignup={() => setAuthPrompt({ mode: 'signup' })}
                   onLogin={() => setAuthPrompt({ mode: 'login' })}
                 />
-              ) : user.isMother ? <Reviews /> : <MothersOnlyGate what="Reviews" />
+              )
             )}
             {tab === 'community' && (
               user ? (user.isMother ? <CommunityHub /> : <Community />) : (
