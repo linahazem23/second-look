@@ -12,6 +12,13 @@ export function getToken() {
   return token;
 }
 
+let onUnauthorized: (() => void) | null = null;
+
+/** Registered by AdminAuthContext so an expired/invalid token logs the admin out everywhere, instead of just showing an error on whatever page they're on. */
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  onUnauthorized = fn;
+}
+
 export class ApiError extends Error {
   status: number;
   body: any;
@@ -30,6 +37,7 @@ async function request(path: string, options: RequestInit = {}) {
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const body = isJson ? await res.json() : null;
 
+  if (res.status === 401 && token) onUnauthorized?.();
   if (!res.ok) throw new ApiError(res.status, body);
   return body;
 }

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { api, getToken, setToken } from './api.js';
+import { api, getToken, setToken, setUnauthorizedHandler } from './api.js';
 
 interface AdminInfo {
   id: string;
@@ -39,6 +39,13 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('sl_admin_info');
     setAdmin(null);
   }
+
+  // A 401 from any request (expired or invalid token) logs the admin out immediately,
+  // so a stale session shows the login screen again instead of a stuck error on whatever page they're on.
+  useEffect(() => {
+    setUnauthorizedHandler(logout);
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   return <AdminAuthContext.Provider value={{ admin, login, logout }}>{children}</AdminAuthContext.Provider>;
 }

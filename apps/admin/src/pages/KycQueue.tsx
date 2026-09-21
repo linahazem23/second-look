@@ -15,12 +15,20 @@ interface PendingKycUser {
 export function KycQueue() {
   const [users, setUsers] = useState<PendingKycUser[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   function load() {
-    api.get('/api/admin/kyc-pending').then((res) => setUsers(res.users)).catch((err) => setError(friendlyError(err)));
+    setError(null);
+    return api.get('/api/admin/kyc-pending').then((res) => setUsers(res.users)).catch((err) => setError(friendlyError(err)));
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
+
+  async function refresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
 
   async function approve(id: string) {
     try {
@@ -44,7 +52,10 @@ export function KycQueue() {
 
   return (
     <>
-      <div className="page-head"><h1>Identity verification</h1><p>Manually reviewed — no automated vendor is wired up yet</p></div>
+      <div className="page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+        <div><h1>Identity verification</h1><p>Manually reviewed — no automated vendor is wired up yet</p></div>
+        <button className="btn ghost" onClick={refresh} disabled={refreshing}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+      </div>
       {error && <p className="login-err">{error}</p>}
       {users.length === 0 && !error && <div className="panel"><p style={{ padding: 16 }}>Nothing pending review</p></div>}
       {users.map((u) => (
