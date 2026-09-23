@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext.js';
 import { api, friendlyError } from '../api.js';
 import { Icon, categoryIcon } from '../Icon.js';
-import { MultiImageUpload } from '../ImageUpload.js';
+import { MultiImageUpload, ImageUpload } from '../ImageUpload.js';
 import { Toggle } from '../Toggle.js';
 import { GrowthPanel } from './GrowthPanel.js';
 import { LocationAreaField } from '../LocationArea.js';
 import { maxAllowedPrice } from '../pricing.js';
 import { suggestUsername } from '../identity.js';
+import { Avatar } from '../Avatar.js';
+import { AVATAR_PRESETS } from '../avatarPresets.js';
 
 const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
 function categoryLabel(c: string): string {
@@ -87,6 +89,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
     <>
       <div className="section-head">
         <button className="back-btn" onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
+        <Avatar user={user} size={44} />
         <div>
           <h1 style={{ fontSize: 19 }}>{user.fullName}</h1>
           <p>{user.area} &middot; Joined {new Date(user.createdAt).toLocaleDateString()}</p>
@@ -101,6 +104,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
         {isNewSeller && <span className="match-badge" style={{ marginTop: 10, display: 'inline-block' }}>New here — be one of her first sales!</span>}
       </div>
 
+      <AvatarCard user={user} onSaved={refresh} />
       <UsernameCard username={user.username} onSaved={refresh} />
       <PhoneCard phoneNumber={user.phoneNumber} onSaved={refresh} />
 
@@ -173,6 +177,80 @@ export function Profile({ onBack }: { onBack: () => void }) {
         ))}
       </div>
     </>
+  );
+}
+
+function AvatarCard({ user, onSaved }: { user: { avatarUrl: string | null; avatarPreset: string | null; fullName: string; username: string | null }; onSaved: () => void }) {
+  const [mode, setMode] = useState<'upload' | 'presets'>(user.avatarUrl ? 'upload' : 'presets');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function saveUpload(url: string | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch('/api/auth/avatar', { avatarUrl: url });
+      onSaved();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePreset(key: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch('/api/auth/avatar', { avatarPreset: key });
+      onSaved();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="plain-card">
+      <h3>Profile picture</h3>
+      <div className="sub">A real photo, or pick a character instead.</div>
+      <div className="cat-toggle" style={{ padding: '10px 0 0' }}>
+        <button className={mode === 'upload' ? 'active' : ''} onClick={() => setMode('upload')}>Upload a photo</button>
+        <button className={mode === 'presets' ? 'active' : ''} onClick={() => setMode('presets')}>Pick a character</button>
+      </div>
+      {mode === 'upload' ? (
+        <div style={{ marginTop: 10 }}>
+          <ImageUpload value={user.avatarUrl} onChange={saveUpload} />
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginTop: 10 }}>
+          {AVATAR_PRESETS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              disabled={busy}
+              onClick={() => savePreset(p.key)}
+              style={{
+                background: p.bg,
+                border: user.avatarPreset === p.key ? '2px solid var(--rose)' : '2px solid transparent',
+                borderRadius: '50%',
+                aspectRatio: '1',
+                fontSize: 22,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              aria-label={p.label}
+            >
+              {p.emoji}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && <p className="field-error">{error}</p>}
+    </div>
   );
 }
 

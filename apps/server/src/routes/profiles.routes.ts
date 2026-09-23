@@ -22,6 +22,8 @@ profilesRouter.get('/:id', async (req, res) => {
       id: user.id,
       fullName: user.fullName,
       username: user.username,
+      avatarUrl: user.avatarUrl,
+      avatarPreset: user.avatarPreset,
       area: user.area,
       createdAt: user.createdAt,
       completedSalesCount: user.completedSalesCount,

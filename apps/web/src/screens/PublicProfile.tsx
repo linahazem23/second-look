@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { Icon, categoryIcon } from '../Icon.js';
 import { displayName } from '../identity.js';
+import { Avatar } from '../Avatar.js';
 
 interface ProfileData {
-  profile: { id: string; fullName: string; username?: string | null; area: string; createdAt: string; completedSalesCount: number; verifiedFemale: boolean };
+  profile: { id: string; fullName: string; username?: string | null; avatarUrl: string | null; avatarPreset: string | null; area: string; createdAt: string; completedSalesCount: number; verifiedFemale: boolean };
   activeListings: { id: string; title: string; category: string; price: number; originalPrice: number; images: string[] }[];
   avgRating: number | null;
   reviewsReceived: { id: string; starRating: number | null; honestListing: boolean | null; easyToCommunicate: boolean | null; showedUpAsAgreed: boolean | null; notes: string | null }[];
@@ -33,6 +34,7 @@ export function PublicProfile({ userId, onBack }: { userId: string; onBack: () =
     <>
       <div className="section-head">
         <button className="back-btn" onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
+        <Avatar user={profile} size={44} />
         <div>
           <h1 style={{ fontSize: 19 }}>{displayName(profile)}</h1>
           <p>{profile.area} &middot; Joined {new Date(profile.createdAt).toLocaleDateString()}</p>

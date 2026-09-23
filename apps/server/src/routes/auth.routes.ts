@@ -252,6 +252,49 @@ authRouter.patch('/phone', requireAuth, async (req: AuthedRequest, res) => {
   return res.json({ phoneNumber: user.phoneNumber });
 });
 
+// Uploaded photo and preset character are mutually exclusive — setting one clears
+// the other. Sending both null reverts display to the initials fallback.
+const avatarSchema = z.object({
+  avatarUrl: z.string().url().nullable().optional(),
+  avatarPreset: z.string().min(1).max(40).nullable().optional()
+});
+
+authRouter.patch('/avatar', requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = avatarSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const data: { avatarUrl?: string | null; avatarPreset?: string | null } = {};
+  if (parsed.data.avatarUrl !== undefined) {
+    data.avatarUrl = parsed.data.avatarUrl;
+    data.avatarPreset = null;
+  }
+  if (parsed.data.avatarPreset !== undefined) {
+    data.avatarPreset = parsed.data.avatarPreset;
+    data.avatarUrl = null;
+  }
+
+  const user = await prisma.user.update({ where: { id: req.userId }, data });
+  return res.json({ avatarUrl: user.avatarUrl, avatarPreset: user.avatarPreset });
+});
+
+// Real date stored, but the client only ever renders month+day — never age/year.
+const birthdaySchema = z.object({
+  birthday: z.string().datetime().nullable().optional(),
+  birthdayBoardHidden: z.boolean().optional()
+});
+
+authRouter.patch('/birthday', requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = birthdaySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const data: { birthday?: Date | null; birthdayBoardHidden?: boolean } = {};
+  if (parsed.data.birthday !== undefined) data.birthday = parsed.data.birthday ? new Date(parsed.data.birthday) : null;
+  if (parsed.data.birthdayBoardHidden !== undefined) data.birthdayBoardHidden = parsed.data.birthdayBoardHidden;
+
+  const user = await prisma.user.update({ where: { id: req.userId }, data });
+  return res.json({ birthday: user.birthday, birthdayBoardHidden: user.birthdayBoardHidden });
+});
+
 const profileQuizSchema = z.object({
   skinType: z.enum(['Oily', 'Dry', 'Combination', 'Normal', 'Sensitive']),
   hairType: z.enum(['Straight', 'Wavy', 'Curly', 'Coily']),

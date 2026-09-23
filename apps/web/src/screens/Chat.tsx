@@ -6,6 +6,7 @@ import { ProductReviewForm, PersonReviewForm } from './ReviewForms.js';
 import { uploadFile } from '../ImageUpload.js';
 import { displayName } from '../identity.js';
 import { DeliveryFeedbackModal } from './DeliveryFeedbackModal.js';
+import { Avatar } from '../Avatar.js';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   AwaitingPayment: 'Waiting for payment',
@@ -51,8 +52,8 @@ interface OrderSummary {
   deliveryMethod: string | null;
   escrowStatus: string;
   listing: { title: string; price: number; images: string[] };
-  buyer: { id: string; fullName: string; username?: string | null };
-  seller: { id: string; fullName: string; username?: string | null };
+  buyer: { id: string; fullName: string; username?: string | null; avatarUrl: string | null; avatarPreset: string | null };
+  seller: { id: string; fullName: string; username?: string | null; avatarUrl: string | null; avatarPreset: string | null };
   chats: { messageText: string }[];
   unread: boolean;
 }
@@ -657,6 +658,7 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
     <div id="chat-thread">
       <div className="thread-header">
         <button onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
+        <Avatar user={other} size={32} />
         <div>
           <div className="t-name">{displayName(other)}</div>
           <div className="t-sub">

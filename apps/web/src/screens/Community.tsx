@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api, friendlyError } from '../api.js';
 import { Icon } from '../Icon.js';
 import { displayName } from '../identity.js';
+import { Avatar } from '../Avatar.js';
 
 // MomBaby is deliberately absent here — Mom Talk is its own dedicated space
 // (rendered via CommunityHub), not a chip mixed into the general composer.
@@ -14,6 +15,8 @@ interface Author {
   id: string;
   fullName: string;
   username?: string | null;
+  avatarUrl: string | null;
+  avatarPreset: string | null;
 }
 
 interface ThreadSummary {
@@ -98,7 +101,8 @@ export function Community({ category, title }: { category?: string; title?: stri
           >
             <h3>{t.title} {t.category && <span className="match-badge" style={{ marginLeft: 6 }}>{categoryLabel(t.category)}</span>}</h3>
             <div className="sub" style={{ marginTop: 4 }}>{t.body.length > 140 ? `${t.body.slice(0, 140)}…` : t.body}</div>
-            <div className="sub" style={{ marginTop: 6 }}>
+            <div className="sub" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Avatar user={t.author} size={18} />
               {displayName(t.author)} &middot; {t.replyCount} repl{t.replyCount === 1 ? 'y' : 'ies'}
             </div>
           </button>
@@ -220,7 +224,7 @@ function ThreadDetailView({ threadId, onBack }: { threadId: string; onBack: () =
 
       <div className="plain-card">
         {thread.category && <span className="match-badge">{categoryLabel(thread.category)}</span>}
-        <div className="sub" style={{ marginTop: 6 }}>{displayName(thread.author)}</div>
+        <div className="sub" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Avatar user={thread.author} size={18} /> {displayName(thread.author)}</div>
         <p style={{ fontSize: 13.5, marginTop: 8 }}>{thread.body}</p>
         <div className="row" style={{ marginTop: 10 }}>
           <button
@@ -242,7 +246,7 @@ function ThreadDetailView({ threadId, onBack }: { threadId: string; onBack: () =
       {thread.replies.length === 0 && <div className="empty-state">No replies yet — be the first to help.</div>}
       {thread.replies.map((r) => (
         <div className="plain-card" key={r.id}>
-          <div className="sub">{displayName(r.author)}</div>
+          <div className="sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Avatar user={r.author} size={18} /> {displayName(r.author)}</div>
           <p style={{ fontSize: 13.5, marginTop: 6 }}>{r.body}</p>
         </div>
       ))}

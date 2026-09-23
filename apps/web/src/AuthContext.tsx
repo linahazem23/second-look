@@ -17,6 +17,12 @@ export interface CurrentUser {
   profileQuizComplete: boolean;
   completedSalesCount: number;
   isMother: boolean;
+  avatarUrl: string | null;
+  avatarPreset: string | null;
+  points: number;
+  birthday: string | null;
+  birthdayBoardHidden: boolean;
+  storeCredit: number;
   createdAt: string;
 }
 

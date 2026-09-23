@@ -10,7 +10,7 @@ export const communityRouter = Router();
 
 const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby', 'General'] as const;
 
-const AUTHOR_SELECT = { id: true, fullName: true, username: true } as const;
+const AUTHOR_SELECT = { id: true, fullName: true, username: true, avatarUrl: true, avatarPreset: true } as const;
 
 // Public — reading consultations doesn't require an account, same as browsing listings.
 // Mom Talk is a fully separate space (see CommunityHub client-side) — the
