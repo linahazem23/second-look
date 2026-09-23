@@ -12,12 +12,14 @@ import { ReviewsHub } from './screens/ReviewsHub.js';
 import { Community } from './screens/Community.js';
 import { CommunityHub } from './screens/CommunityHub.js';
 import { Profile } from './screens/Profile.js';
+import { Pets } from './screens/Pets.js';
 import { GuardianConsent } from './screens/GuardianConsent.js';
 import { ResetPassword } from './screens/ResetPassword.js';
 import { Icon } from './Icon.js';
+import { PetOverlay } from './PetOverlay.js';
 
 type Tab = 'home' | 'want' | 'reviews' | 'community' | 'chat';
-type MenuView = 'profile' | 'guidelines' | null;
+type MenuView = 'profile' | 'guidelines' | 'pets' | null;
 
 /** Shown in place of Want/Community/Chat for a guest — browsing stays open, only actions require an account. */
 function GuestGate({ what, onSignup, onLogin }: { what: string; onSignup: () => void; onLogin: () => void }) {
@@ -243,6 +245,7 @@ export function App() {
         ) : (
           <>
         {menuView === 'profile' && user && <Profile onBack={() => setMenuView(null)} />}
+        {menuView === 'pets' && user && <Pets onBack={() => setMenuView(null)} />}
         {menuView === 'guidelines' && <GuidelinesView onBack={() => setMenuView(null)} onContactSupport={goToSupport} />}
 
         {menuView === null && (
@@ -334,6 +337,7 @@ export function App() {
           {user ? (
             <>
               <button className="item" onClick={() => { setMenuView('profile'); setMenuOpen(false); }}>My profile</button>
+              <button className="item" onClick={() => { setMenuView('pets'); setMenuOpen(false); }}>My pets</button>
               <button className="item" onClick={() => { setMenuView('guidelines'); setMenuOpen(false); }}>Community guidelines</button>
               <button className="item" onClick={() => { setShowFeedback(true); setMenuOpen(false); }}>Send feedback</button>
               <button className="item" onClick={logout}>Log out</button>
@@ -347,6 +351,10 @@ export function App() {
           )}
         </div>
       </div>
+
+      {user && (menuView === 'profile' || (menuView === null && tab === 'home')) && (
+        <PetOverlay onOpen={() => setMenuView('pets')} />
+      )}
 
       {showDivaModal && <DivaModal onClose={() => setShowDivaModal(false)} />}
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}

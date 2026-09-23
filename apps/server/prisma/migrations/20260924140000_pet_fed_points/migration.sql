@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Pet" ADD COLUMN "fedPoints" INTEGER NOT NULL DEFAULT 0;

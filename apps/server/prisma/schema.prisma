@@ -636,6 +636,10 @@ model Pet {
   species     String
   name        String
   growthStage Int       @default(0)
+  // Cumulative food "effect" fed over this pet's lifetime — growthStage is
+  // derived from this against fixed thresholds (see lib/pets.ts), not stored
+  // independently, so it can never drift out of sync.
+  fedPoints   Int       @default(0)
   happiness   Int       @default(50)
   lastFedAt   DateTime?
   adoptedAt   DateTime  @default(now())
