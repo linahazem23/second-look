@@ -4,6 +4,7 @@ import type { Order } from '@prisma/client';
 import { prisma } from '../lib/db.js';
 import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
+import { awardPoints, maybeAwardReviewerCharm, POINTS } from '../lib/points.js';
 
 export const reviewsRouter = Router();
 
@@ -39,6 +40,9 @@ reviewsRouter.post('/community', requireAuth, requireVerified, async (req: Authe
       category: parsed.data.category
     }
   });
+
+  await awardPoints(req.userId!, POINTS.REVIEW_LEFT, 'review_left', review.id);
+  await maybeAwardReviewerCharm(req.userId!);
 
   return res.status(201).json({ review });
 });
@@ -150,6 +154,9 @@ reviewsRouter.post('/product', requireAuth, async (req: AuthedRequest, res) => {
       flagged: fraudSignals.length > 0
     }
   });
+
+  await awardPoints(req.userId!, POINTS.REVIEW_LEFT, 'review_left', review.id);
+  await maybeAwardReviewerCharm(req.userId!);
 
   return res.status(201).json({ review });
 });
@@ -302,6 +309,9 @@ reviewsRouter.post('/person', requireAuth, async (req: AuthedRequest, res) => {
       flagged: fraudSignals.length > 0
     }
   });
+
+  await awardPoints(req.userId!, POINTS.REVIEW_LEFT, 'review_left', review.id);
+  await maybeAwardReviewerCharm(req.userId!);
 
   // Blind & simultaneous: reveal both sides the instant the second one lands.
   const counterpartReview = await prisma.review.findFirst({

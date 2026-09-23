@@ -10,6 +10,7 @@ import { maxAllowedPrice } from '../pricing.js';
 import { suggestUsername } from '../identity.js';
 import { Avatar } from '../Avatar.js';
 import { AVATAR_PRESETS } from '../avatarPresets.js';
+import { RewardsPanel } from './RewardsPanel.js';
 
 const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
 function categoryLabel(c: string): string {
@@ -104,6 +105,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
         {isNewSeller && <span className="match-badge" style={{ marginTop: 10, display: 'inline-block' }}>New here — be one of her first sales!</span>}
       </div>
 
+      <RewardsPanel />
       <AvatarCard user={user} onSaved={refresh} />
       <UsernameCard username={user.username} onSaved={refresh} />
       <PhoneCard phoneNumber={user.phoneNumber} onSaved={refresh} />

@@ -5,6 +5,7 @@ import { prisma } from '../lib/db.js';
 import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRequest } from '../lib/auth.js';
 import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
 import { notifyGuardianConsentRequest, notifyPasswordReset, notifyWelcome } from '../lib/email.js';
+import { awardPoints, awardCharm, POINTS } from '../lib/points.js';
 import { upload, uploadToStorage } from '../lib/upload.js';
 
 export const authRouter = Router();
@@ -98,6 +99,11 @@ authRouter.post('/signup', async (req, res) => {
   }
 
   notifyWelcome({ recipientEmail: user.email, recipientName: user.username ?? user.fullName }).catch(() => {});
+
+  if (referredByUserId) {
+    await awardPoints(referredByUserId, POINTS.REFERRAL_SIGNUP, 'referral_signup', user.id);
+    await awardCharm(referredByUserId, 'referral_star');
+  }
 
   const token = signUserToken(user.id);
   return res.status(201).json({
@@ -221,6 +227,19 @@ authRouter.get('/me', requireAuth, async (req: AuthedRequest, res) => {
       profileQuizComplete: Boolean(user.skinType && user.hairType),
       isPlusActive: isPlusActive(user)
     }
+  });
+});
+
+// All charms in the catalog, each flagged with whether this member has earned it —
+// lets the profile screen show locked/unlocked state in one call.
+authRouter.get('/charms', requireAuth, async (req: AuthedRequest, res) => {
+  const [allCharms, earned] = await Promise.all([
+    prisma.charm.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.userCharm.findMany({ where: { userId: req.userId } })
+  ]);
+  const earnedIds = new Set(earned.map((e) => e.charmId));
+  return res.json({
+    charms: allCharms.map((c) => ({ ...c, earned: earnedIds.has(c.id) }))
   });
 });
 

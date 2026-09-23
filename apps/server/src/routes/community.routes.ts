@@ -5,6 +5,7 @@ import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
 import { notifyThreadReply } from '../lib/email.js';
+import { awardPoints, maybeAwardCommunityHelperCharm, POINTS } from '../lib/points.js';
 
 export const communityRouter = Router();
 
@@ -78,6 +79,9 @@ communityRouter.post('/', requireAuth, requireVerified, async (req: AuthedReques
   // Posting a thread implicitly watches it — you'll want to know if anyone replies.
   await prisma.communityThreadWatcher.create({ data: { threadId: thread.id, userId: req.userId! } });
 
+  await awardPoints(req.userId!, POINTS.COMMUNITY_POST, 'community_post', thread.id);
+  await maybeAwardCommunityHelperCharm(req.userId!);
+
   return res.status(201).json({ thread });
 });
 
@@ -143,6 +147,9 @@ communityRouter.post('/:id/replies', requireAuth, async (req: AuthedRequest, res
       create: { threadId: thread.id, userId: req.userId! }
     })
   ]);
+
+  await awardPoints(req.userId!, POINTS.COMMUNITY_POST, 'community_post', reply.id);
+  await maybeAwardCommunityHelperCharm(req.userId!);
 
   const watchers = await prisma.communityThreadWatcher.findMany({
     where: { threadId: thread.id, userId: { not: req.userId } },

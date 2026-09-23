@@ -6,6 +6,7 @@ import { requireVerified } from '../lib/access.js';
 import { createPaymobCheckout } from '../lib/paymob.js';
 import { buyerProtectionFee as calcBuyerProtectionFee } from '../lib/pricing.js';
 import { notifyOrderPlaced } from '../lib/email.js';
+import { awardPoints, awardCharm, POINTS } from '../lib/points.js';
 
 export const ordersRouter = Router();
 
@@ -184,6 +185,9 @@ ordersRouter.post('/:id/confirm-delivery', requireAuth, async (req: AuthedReques
 
   const offerMonetizationChoice =
     seller.completedSalesCount === SELLER_PLUS_OFFER_THRESHOLD && !seller.monetizationMode;
+
+  await awardPoints(order.sellerId, POINTS.SALE_COMPLETED, 'sale_completed', order.id);
+  if (seller.completedSalesCount === 1) await awardCharm(order.sellerId, 'first_sale');
 
   return res.json({ order: updatedOrder, offerMonetizationChoice });
 });
