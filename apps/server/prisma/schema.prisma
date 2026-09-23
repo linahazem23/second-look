@@ -106,6 +106,18 @@ model User {
   // Opted in at signup — unlocks the Mom & Baby category and Community section,
   // which stay entirely hidden (server-filtered, not just UI-hidden) otherwise.
   isMother            Boolean       @default(false)
+  // Profile picture — an uploaded photo takes precedence over a chosen preset
+  // character when both are set; neither set falls back to initials client-side.
+  avatarUrl           String?
+  avatarPreset        String?
+  // Spendable/accumulating reward balance, earned via lib/points.ts's awardPoints().
+  points              Int           @default(0)
+  // Real date stored, but only ever rendered as month+day — never age/year.
+  birthday            DateTime?
+  birthdayBoardHidden Boolean       @default(false)
+  // EGP credit from a gift pool with no linked listing — spendable only on a
+  // real Second Look order (see Order.storeCreditApplied), never withdrawable.
+  storeCredit         Float         @default(0)
   // Growth/referral promo: membership perks (currently: free boosting + a Plus
   // badge) are active whenever membershipExpiresAt is in the future — checked live
   // on every read, never written back on expiry, so there's nothing to "forget".
@@ -133,6 +145,12 @@ model User {
   communityThreads        CommunityThread[]
   communityReplies        CommunityReply[]
   communityThreadWatches  CommunityThreadWatcher[]
+  pointsLedger            PointsLedger[]
+  charms                  UserCharm[]
+  birthdayGiftPool        BirthdayGiftPool[]
+  giftContributions       GiftContribution[]
+  pets                    Pet[]
+  petInventory            PetInventory[]
 }
 
 model VideoSubmission {
@@ -256,6 +274,15 @@ model Order {
   reviewUnlockAt    DateTime?
   buyerLastReadAt   DateTime?
   sellerLastReadAt  DateTime?
+  // Set when this order was auto-created from a funded birthday gift pool rather
+  // than a normal Buy — the money was already collected across many separate
+  // contributions, so paymobOrderId/paymobTransactionId stay null here. Gives a
+  // dispute/refund a trail back to the individual contributors via GiftContribution.
+  giftPoolId        String?
+  giftPool          BirthdayGiftPool?   @relation(fields: [giftPoolId], references: [id])
+  // How much of `amount` was covered by the buyer's storeCredit rather than a
+  // live Paymob charge — needed to restore credit correctly on a refund.
+  storeCreditApplied Float              @default(0)
   createdAt         DateTime            @default(now())
   reviews           Review[]
   chats             Chat[]
@@ -526,4 +553,106 @@ model CommunityThreadWatcher {
   createdAt DateTime        @default(now())
 
   @@unique([threadId, userId])
+}
+
+// Catalog of earnable achievement badges — collectible, not spendable (see
+// User.points for the spendable balance). Seeded once; awarded via lib/points.ts.
+model Charm {
+  id          String      @id @default(cuid())
+  key         String      @unique
+  label       String
+  description String
+  icon        String
+  createdAt   DateTime    @default(now())
+  users       UserCharm[]
+}
+
+model UserCharm {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  charmId  String
+  charm    Charm    @relation(fields: [charmId], references: [id])
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, charmId])
+}
+
+// Append-only audit trail AND the idempotency mechanism for awarding points —
+// the unique constraint means a second attempt to award the same (userId,
+// reason, refId) triple fails on insert (P2002) instead of racing a
+// check-then-insert. A negative amount records a spend (e.g. the pet shop).
+model PointsLedger {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Int
+  reason    String
+  refId     String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, reason, refId])
+}
+
+model BirthdayGiftPool {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id])
+  // If set, funding the pool auto-buys this real listing for her. If not,
+  // the raised amount becomes non-cashable storeCredit instead — either way,
+  // money only ever moves through a real Second Look purchase, never as a
+  // direct cash handout to an individual.
+  listingId       String?
+  giftDescription String?
+  targetAmount    Float
+  raisedAmount    Float              @default(0)
+  status          String             @default("open") // open | funded | expired | cancelled
+  deadline        DateTime
+  createdAt       DateTime           @default(now())
+  contributions   GiftContribution[]
+  orders          Order[]
+}
+
+model GiftContribution {
+  id            String           @id @default(cuid())
+  poolId        String
+  pool          BirthdayGiftPool @relation(fields: [poolId], references: [id])
+  contributorId String
+  contributor   User             @relation(fields: [contributorId], references: [id])
+  amount        Float
+  paymobOrderId String?
+  status        String           @default("pending") // pending | paid | failed | refunded
+  createdAt     DateTime         @default(now())
+}
+
+model Pet {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  species     String
+  name        String
+  growthStage Int       @default(0)
+  happiness   Int       @default(50)
+  lastFedAt   DateTime?
+  adoptedAt   DateTime  @default(now())
+}
+
+// Fixed shop catalog, seeded once alongside Charm — no crafting/combining.
+model PetItemCatalog {
+  id         String @id @default(cuid())
+  key        String @unique
+  name       String
+  pointsCost Int
+  kind       String // food | toy | accessory
+  effect     Int
+}
+
+model PetInventory {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  itemKey  String
+  quantity Int    @default(0)
+
+  @@unique([userId, itemKey])
 }
