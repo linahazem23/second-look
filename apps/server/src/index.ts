@@ -18,6 +18,7 @@ import { paymentsRouter } from './routes/payments.routes.js';
 import { communityRouter } from './routes/community.routes.js';
 import { adsRouter } from './routes/ads.routes.js';
 import { feedbackRouter } from './routes/feedback.routes.js';
+import { birthdaysRouter } from './routes/birthdays.routes.js';
 
 dotenv.config();
 
@@ -54,6 +55,7 @@ app.use('/api/payments', paymentsRouter);
 app.use('/api/community', communityRouter);
 app.use('/api/ads', adsRouter);
 app.use('/api/feedback', feedbackRouter);
+app.use('/api/birthdays', birthdaysRouter);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

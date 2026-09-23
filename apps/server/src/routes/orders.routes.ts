@@ -65,6 +65,49 @@ export async function createOrderForListing(listingId: string, buyerId: string, 
   return order;
 }
 
+/**
+ * Called once a birthday gift pool tied to a real listing hits its target — the
+ * money was already collected across many separate contributor charges (see
+ * payments.routes.ts's `giftpool_` webhook branch), so unlike createOrderForListing
+ * there is no buyer payment to collect here: the order is created directly in
+ * InEscrow, with paymobOrderId left null and giftPoolId set for the audit trail
+ * back to the individual contributions if it's ever disputed.
+ */
+export async function createOrderFromGiftPool(poolId: string, listingId: string, buyerId: string) {
+  const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { seller: true } });
+  if (!listing || listing.status !== 'Active') throw new Error('Listing is not available');
+  if (listing.sellerId === buyerId) throw new Error('You cannot buy your own listing');
+
+  const buyerProtectionFee = calcBuyerProtectionFee(listing.price);
+
+  const order = await prisma.$transaction(async (tx) => {
+    const claim = await tx.listing.updateMany({ where: { id: listingId, status: 'Active' }, data: { status: 'Sold' } });
+    if (claim.count === 0) throw new Error('This listing was just bought by someone else.');
+
+    return tx.order.create({
+      data: {
+        buyerId,
+        sellerId: listing.sellerId,
+        listingId: listing.id,
+        amount: listing.price + buyerProtectionFee,
+        buyerProtectionFee,
+        escrowStatus: 'InEscrow',
+        giftPoolId: poolId
+      }
+    });
+  });
+
+  notifyOrderPlaced({
+    sellerEmail: listing.seller.email,
+    sellerName: listing.seller.username ?? listing.seller.fullName,
+    itemTitle: listing.title,
+    amount: listing.price,
+    orderId: order.id
+  }).catch(() => {});
+
+  return order;
+}
+
 // Delivery method is chosen afterwards, from inside the order chat — Buy only
 // starts the payment hold and connects buyer and seller.
 ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, res) => {
@@ -88,16 +131,42 @@ ordersRouter.post('/:id/pay', requireAuth, async (req: AuthedRequest, res) => {
   if (order.buyerId !== req.userId) return res.status(403).json({ error: 'Only the buyer can pay for this order' });
   if (order.escrowStatus !== 'AwaitingPayment') return res.status(409).json({ error: 'This order is not awaiting payment' });
 
+  // Store credit (from a funded birthday gift pool with no linked listing) is
+  // applied automatically to reduce what's actually charged — it can only ever
+  // help the buyer, so there's no opt-out. Fully covering the order skips
+  // Paymob entirely rather than initiating a zero/negative-amount charge.
+  const creditToApply = Math.min(order.amount, order.buyer.storeCredit);
+  const remaining = order.amount - creditToApply;
+
+  if (creditToApply > 0) {
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: order.buyerId }, data: { storeCredit: { decrement: creditToApply } } }),
+      prisma.order.update({ where: { id: order.id }, data: { storeCreditApplied: creditToApply } })
+    ]);
+  }
+
+  if (remaining <= 0) {
+    await prisma.order.update({ where: { id: order.id }, data: { escrowStatus: 'InEscrow' } });
+    return res.json({ settledWithCredit: true });
+  }
+
   try {
     const [firstName, ...rest] = order.buyer.fullName.split(' ');
     const { paymobOrderId, iframeUrl } = await createPaymobCheckout({
-      amountEgp: order.amount,
+      amountEgp: remaining,
       merchantOrderId: order.id,
       billing: { firstName, lastName: rest.join(' '), email: order.buyer.email, phone: '' }
     });
     await prisma.order.update({ where: { id: order.id }, data: { paymobOrderId } });
     return res.json({ iframeUrl });
   } catch (err) {
+    // Paymob checkout failed to even initiate — restore the credit rather than losing it silently.
+    if (creditToApply > 0) {
+      await prisma.$transaction([
+        prisma.user.update({ where: { id: order.buyerId }, data: { storeCredit: { increment: creditToApply } } }),
+        prisma.order.update({ where: { id: order.id }, data: { storeCreditApplied: 0 } })
+      ]);
+    }
     return res.status(502).json({ error: err instanceof Error ? err.message : 'Payment provider error' });
   }
 });

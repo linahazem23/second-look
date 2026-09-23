@@ -109,6 +109,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
       <AvatarCard user={user} onSaved={refresh} />
       <UsernameCard username={user.username} onSaved={refresh} />
       <PhoneCard phoneNumber={user.phoneNumber} onSaved={refresh} />
+      <BirthdayCard birthday={user.birthday} hidden={user.birthdayBoardHidden} onSaved={refresh} />
 
       <GrowthPanel />
 
@@ -344,6 +345,56 @@ function PhoneCard({ phoneNumber, onSaved }: { phoneNumber: string | null; onSav
       <div className="row" style={{ marginTop: 8 }}>
         <button className="btn-outline" disabled={busy || !phone.trim() || phone.trim() === (phoneNumber ?? '')} onClick={handleSave}>
           {busy ? 'Saving…' : saved ? 'Saved ✓' : 'Save phone number'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BirthdayCard({ birthday, hidden, onSaved }: { birthday: string | null; hidden: boolean; onSaved: () => void }) {
+  const [value, setValue] = useState(birthday ? birthday.slice(0, 10) : '');
+  const [boardHidden, setBoardHidden] = useState(hidden);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSave() {
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.patch('/api/auth/birthday', {
+        birthday: value ? new Date(value).toISOString() : null,
+        birthdayBoardHidden: boardHidden
+      });
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="plain-card">
+      <h3>Your birthday</h3>
+      <div className="sub">Shows day and month only on the Birthdays board — never your age. Others can set up a gift pool for you once it's set.</div>
+      <input
+        style={{ marginTop: 10 }}
+        type="date"
+        value={value}
+        onChange={(e) => { setValue(e.target.value); setSaved(false); }}
+      />
+      {value && (
+        <div className="toggle-row" style={{ marginTop: 10 }}>
+          <Toggle checked={!boardHidden} onChange={(v) => { setBoardHidden(!v); setSaved(false); }} label="Show me on the Birthdays board" />
+        </div>
+      )}
+      {error && <p className="field-error">{error}</p>}
+      <div className="row" style={{ marginTop: 8 }}>
+        <button className="btn-outline" disabled={busy || (value === (birthday?.slice(0, 10) ?? '') && boardHidden === hidden)} onClick={handleSave}>
+          {busy ? 'Saving…' : saved ? 'Saved ✓' : 'Save birthday'}
         </button>
       </div>
     </div>

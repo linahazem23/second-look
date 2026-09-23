@@ -621,6 +621,10 @@ model GiftContribution {
   contributor   User             @relation(fields: [contributorId], references: [id])
   amount        Float
   paymobOrderId String?
+  // Paymob's *transaction* id from the webhook (distinct from paymobOrderId) —
+  // needed to issue a refund against this specific charge if the pool expires
+  // underfunded, same reason Order keeps both ids.
+  paymobTransactionId String?
   status        String           @default("pending") // pending | paid | failed | refunded
   createdAt     DateTime         @default(now())
 }

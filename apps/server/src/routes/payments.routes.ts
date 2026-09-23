@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '../lib/db.js';
 import { verifyWebhookHmac } from '../lib/paymob.js';
+import { createOrderFromGiftPool } from './orders.routes.js';
+import { awardPoints, awardCharm, POINTS } from '../lib/points.js';
 
 export const paymentsRouter = Router();
 
@@ -36,6 +38,57 @@ paymentsRouter.post('/paymob/webhook', async (req, res) => {
       ]);
     }
     // On failure there's nothing to revert — the target was never marked boosted.
+
+    return res.json({ ok: true });
+  }
+
+  if (merchantOrderId.startsWith('giftpool_')) {
+    const contributionId = merchantOrderId.slice('giftpool_'.length);
+    const contribution = await prisma.giftContribution.findUnique({ where: { id: contributionId } });
+    if (!contribution) return res.status(404).json({ error: 'Contribution not found' });
+
+    // Idempotent — Paymob may redeliver the same webhook.
+    if (contribution.status === 'paid') return res.json({ ok: true });
+
+    if (obj.success !== true) {
+      await prisma.giftContribution.update({ where: { id: contribution.id }, data: { status: 'failed' } });
+      return res.json({ ok: true });
+    }
+
+    const pool = await prisma.$transaction(async (tx) => {
+      await tx.giftContribution.update({
+        where: { id: contribution.id },
+        data: { status: 'paid', paymobTransactionId: String(obj.id) }
+      });
+      return tx.birthdayGiftPool.update({
+        where: { id: contribution.poolId },
+        data: { raisedAmount: { increment: contribution.amount } }
+      });
+    });
+
+    await awardPoints(contribution.contributorId, POINTS.GIFT_CONTRIBUTION, 'gift_contribution', contribution.id);
+    await awardCharm(contribution.contributorId, 'gift_giver');
+
+    if (pool.status === 'open' && pool.raisedAmount >= pool.targetAmount) {
+      if (pool.listingId) {
+        try {
+          await createOrderFromGiftPool(pool.id, pool.listingId, pool.userId);
+          await prisma.birthdayGiftPool.update({ where: { id: pool.id }, data: { status: 'funded' } });
+        } catch {
+          // The linked listing sold out from under the pool between contributions —
+          // fall back to store credit so the raised money is never stranded.
+          await prisma.$transaction([
+            prisma.user.update({ where: { id: pool.userId }, data: { storeCredit: { increment: pool.raisedAmount } } }),
+            prisma.birthdayGiftPool.update({ where: { id: pool.id }, data: { status: 'funded' } })
+          ]);
+        }
+      } else {
+        await prisma.$transaction([
+          prisma.user.update({ where: { id: pool.userId }, data: { storeCredit: { increment: pool.raisedAmount } } }),
+          prisma.birthdayGiftPool.update({ where: { id: pool.id }, data: { status: 'funded' } })
+        ]);
+      }
+    }
 
     return res.json({ ok: true });
   }

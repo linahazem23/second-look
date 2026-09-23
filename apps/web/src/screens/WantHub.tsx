@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Icon } from '../Icon.js';
 import { Want } from './Want.js';
 import { Demand } from './Demand.js';
+import { BirthdaysHub } from './BirthdaysHub.js';
 
-type SubView = 'want' | 'demand' | null;
+type SubView = 'want' | 'demand' | 'birthdays' | null;
 
 export function WantHub() {
   const [view, setView] = useState<SubView>(null);
@@ -32,6 +33,18 @@ export function WantHub() {
     );
   }
 
+  if (view === 'birthdays') {
+    return (
+      <>
+        <div className="section-head">
+          <button className="back-btn" onClick={() => setView(null)}><Icon name="arrowLeft" size={18} /></button>
+          <div><h1 style={{ fontSize: 19 }}>Birthdays</h1></div>
+        </div>
+        <BirthdaysHub />
+      </>
+    );
+  }
+
   return (
     <>
       <div className="section-head">
@@ -47,6 +60,11 @@ export function WantHub() {
       <button className="plain-card" style={{ width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer' }} onClick={() => setView('demand')}>
         <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="demand" size={15} /> Demand board</h3>
         <div className="sub">See what other people nearby are looking for, and offer it if you have it.</div>
+      </button>
+
+      <button className="plain-card" style={{ width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer' }} onClick={() => setView('birthdays')}>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>🎂 Birthdays</h3>
+        <div className="sub">See who's up next and chip in on a gift together.</div>
       </button>
     </>
   );
