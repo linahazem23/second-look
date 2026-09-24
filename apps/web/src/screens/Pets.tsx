@@ -29,6 +29,25 @@ interface CatalogItem {
 const STAGE_LABELS = ['Baby', 'Adult', 'Deluxe'];
 const NEXT_THRESHOLD = [50, 150, null] as (number | null)[];
 
+const ITEM_ICONS: Record<string, string> = {
+  apple: '🍎',
+  treat: '🍬',
+  feast: '🍗',
+  ball: '⚾',
+  plush: '🧸',
+  bow: '🎀',
+  hat: '🎩',
+  crown: '👑'
+};
+
+const POINTS_GUIDE: [string, string][] = [
+  ['Complete a sale', 'Earn points once payment is released to you as the seller.'],
+  ['Leave a review', 'Product or trust reviews after a completed order.'],
+  ['Post in Community', 'Ask a question or reply to one — helping counts too.'],
+  ['Refer a friend', 'Points land when they sign up with your referral code.'],
+  ['Contribute to a gift pool', 'Chip in on someone’s birthday gift and earn the Gift-Giver charm too.']
+];
+
 export function Pets({ onBack }: { onBack: () => void }) {
   const { user, refresh } = useAuth();
   const [pets, setPets] = useState<PetRow[]>([]);
@@ -37,6 +56,7 @@ export function Pets({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<'pets' | 'shop'>('pets');
+  const [showGuide, setShowGuide] = useState(false);
 
   function load() {
     setLoading(true);
@@ -133,8 +153,31 @@ export function Pets({ onBack }: { onBack: () => void }) {
 
       {tab === 'shop' && !loading && (
         <>
+          <div className="plain-card">
+            <button
+              type="button"
+              onClick={() => setShowGuide((v) => !v)}
+              style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <h3>How to earn points</h3>
+              <span style={{ color: 'var(--ink-light)', fontSize: 12 }}>{showGuide ? '▲' : '▼'}</span>
+            </button>
+            {showGuide && (
+              <div style={{ marginTop: 10 }}>
+                {POINTS_GUIDE.map(([title, body]) => (
+                  <div key={title} style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>{title}</div>
+                    <div className="sub">{body}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {catalog.map((item) => (
             <div className="plain-card" key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--blush)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                {ITEM_ICONS[item.key] ?? '🎁'}
+              </div>
               <div style={{ flex: 1 }}>
                 <h3>{item.name}</h3>
                 <div className="sub">{item.kind === 'food' ? 'Feeds growth' : 'Boosts happiness'} &middot; you have {invQty(item.key)}</div>
@@ -192,8 +235,8 @@ function AdoptForm({ onAdopted }: { onAdopted: () => void }) {
           </button>
         ))}
       </div>
-      <label>Name your pet</label>
-      <input required value={name} onChange={(e) => setName(e.target.value)} maxLength={30} />
+      <label className="field-label">Name your pet</label>
+      <input className="field-input" required value={name} onChange={(e) => setName(e.target.value)} maxLength={30} />
       {error && <p className="field-error">{error}</p>}
       <div className="form-row">
         <button type="submit" className="btn-solid" disabled={busy || !name.trim()}>

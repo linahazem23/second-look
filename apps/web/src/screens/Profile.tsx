@@ -63,6 +63,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   function load() {
     api.get('/api/listings/mine')
@@ -86,6 +87,21 @@ export function Profile({ onBack }: { onBack: () => void }) {
   if (!user) return null;
   const isNewSeller = user.completedSalesCount === 0 && listings.length > 0;
 
+  if (showSettings) {
+    return (
+      <>
+        <div className="section-head">
+          <button className="back-btn" onClick={() => setShowSettings(false)}><Icon name="arrowLeft" size={18} /></button>
+          <div><h1 style={{ fontSize: 19 }}>Profile settings</h1></div>
+        </div>
+        <AvatarCard user={user} onSaved={refresh} />
+        <UsernameCard username={user.username} onSaved={refresh} />
+        <PhoneCard phoneNumber={user.phoneNumber} onSaved={refresh} />
+        <BirthdayCard birthday={user.birthday} hidden={user.birthdayBoardHidden} onSaved={refresh} />
+      </>
+    );
+  }
+
   return (
     <>
       <div className="section-head">
@@ -106,10 +122,15 @@ export function Profile({ onBack }: { onBack: () => void }) {
       </div>
 
       <RewardsPanel />
-      <AvatarCard user={user} onSaved={refresh} />
-      <UsernameCard username={user.username} onSaved={refresh} />
-      <PhoneCard phoneNumber={user.phoneNumber} onSaved={refresh} />
-      <BirthdayCard birthday={user.birthday} hidden={user.birthdayBoardHidden} onSaved={refresh} />
+
+      <button className="plain-card" style={{ width: '100%', textAlign: 'left', border: '0.5px solid var(--line)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }} onClick={() => setShowSettings(true)}>
+        <Avatar user={user} size={32} />
+        <div style={{ flex: 1 }}>
+          <h3>Profile settings</h3>
+          <div className="sub">Profile picture, username, phone number, birthday</div>
+        </div>
+        <span style={{ color: 'var(--ink-light)', fontSize: 18 }}>›</span>
+      </button>
 
       <GrowthPanel />
 
@@ -283,7 +304,8 @@ function UsernameCard({ username, onSaved }: { username: string | null; onSaved:
       <h3>Username</h3>
       <div className="sub">Optional — shown instead of your real name everywhere it's public. Leave blank to use your name.</div>
       <input
-        style={{ marginTop: 10 }}
+        className="field-input"
+        style={{ marginTop: 12 }}
         placeholder="e.g. skincarefan22"
         value={value}
         onChange={(e) => { setValue(e.target.value.replace(/[^a-zA-Z0-9_]/g, '')); setSaved(false); }}
@@ -335,7 +357,8 @@ function PhoneCard({ phoneNumber, onSaved }: { phoneNumber: string | null; onSav
         So we can reach you fast — by call or WhatsApp — if anything urgent ever comes up with an order.
       </div>
       <input
-        style={{ marginTop: 10 }}
+        className="field-input"
+        style={{ marginTop: 12 }}
         type="tel"
         placeholder="01xxxxxxxxx"
         value={phone}
@@ -381,7 +404,8 @@ function BirthdayCard({ birthday, hidden, onSaved }: { birthday: string | null; 
       <h3>Your birthday</h3>
       <div className="sub">Shows day and month only on the Birthdays board — never your age. Others can set up a gift pool for you once it's set.</div>
       <input
-        style={{ marginTop: 10 }}
+        className="field-input"
+        style={{ marginTop: 12 }}
         type="date"
         value={value}
         onChange={(e) => { setValue(e.target.value); setSaved(false); }}
