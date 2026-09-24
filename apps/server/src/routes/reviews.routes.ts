@@ -5,10 +5,12 @@ import { prisma } from '../lib/db.js';
 import { requireAuth, optionalAuth, type AuthedRequest } from '../lib/auth.js';
 import { requireVerified } from '../lib/access.js';
 import { awardPoints, maybeAwardReviewerCharm, POINTS } from '../lib/points.js';
+import { detectFlaggedKeyword } from '../lib/chatModeration.js';
 
 export const reviewsRouter = Router();
 
 const PERSON_REVIEW_REVEAL_WAIT_DAYS = 7;
+const COMMENT_AUTHOR_SELECT = { id: true, fullName: true, username: true, avatarUrl: true, avatarPreset: true } as const;
 
 const communityReviewSchema = z.object({
   productIdentity: z.string().min(1),
@@ -390,4 +392,79 @@ reviewsRouter.post('/:id/dispute', requireAuth, async (req: AuthedRequest, res) 
   });
 
   return res.json({ review: updated });
+});
+
+const commentSchema = z.object({ body: z.string().min(1).max(1000) });
+
+// Person reviews are blind-until-revealed and only meaningful between the two
+// people on that order — Product reviews stay open to anyone, matching how
+// they're already publicly browsable.
+async function canAccessReviewComments(
+  review: { type: string; revealed: boolean; orderId: string },
+  userId?: string
+): Promise<boolean> {
+  if (review.type !== 'Person') return true;
+  if (!review.revealed || !userId) return false;
+  const order = await prisma.order.findUnique({ where: { id: review.orderId }, select: { buyerId: true, sellerId: true } });
+  return Boolean(order && (order.buyerId === userId || order.sellerId === userId));
+}
+
+reviewsRouter.get('/community/:id/comments', optionalAuth, async (req: AuthedRequest, res) => {
+  const review = await prisma.communityProductReview.findUnique({ where: { id: req.params.id } });
+  if (!review) return res.status(404).json({ error: 'Review not found' });
+
+  const comments = await prisma.reviewComment.findMany({
+    where: { communityProductReviewId: review.id },
+    orderBy: { createdAt: 'asc' },
+    include: { author: { select: COMMENT_AUTHOR_SELECT } }
+  });
+  return res.json({ comments });
+});
+
+reviewsRouter.post('/community/:id/comments', requireAuth, async (req: AuthedRequest, res) => {
+  const review = await prisma.communityProductReview.findUnique({ where: { id: req.params.id } });
+  if (!review) return res.status(404).json({ error: 'Review not found' });
+
+  const parsed = commentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+  if (detectFlaggedKeyword(parsed.data.body)) {
+    return res.status(422).json({ error: 'This question was blocked for review. Please keep it respectful.' });
+  }
+
+  const comment = await prisma.reviewComment.create({
+    data: { communityProductReviewId: review.id, authorId: req.userId!, body: parsed.data.body },
+    include: { author: { select: COMMENT_AUTHOR_SELECT } }
+  });
+  return res.status(201).json({ comment });
+});
+
+reviewsRouter.get('/:id/comments', optionalAuth, async (req: AuthedRequest, res) => {
+  const review = await prisma.review.findUnique({ where: { id: req.params.id } });
+  if (!review) return res.status(404).json({ error: 'Review not found' });
+  if (!(await canAccessReviewComments(review, req.userId))) return res.status(403).json({ error: 'Not available for this review' });
+
+  const comments = await prisma.reviewComment.findMany({
+    where: { reviewId: review.id },
+    orderBy: { createdAt: 'asc' },
+    include: { author: { select: COMMENT_AUTHOR_SELECT } }
+  });
+  return res.json({ comments });
+});
+
+reviewsRouter.post('/:id/comments', requireAuth, async (req: AuthedRequest, res) => {
+  const review = await prisma.review.findUnique({ where: { id: req.params.id } });
+  if (!review) return res.status(404).json({ error: 'Review not found' });
+  if (!(await canAccessReviewComments(review, req.userId))) return res.status(403).json({ error: 'Not available for this review' });
+
+  const parsed = commentSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+  if (detectFlaggedKeyword(parsed.data.body)) {
+    return res.status(422).json({ error: 'This question was blocked for review. Please keep it respectful.' });
+  }
+
+  const comment = await prisma.reviewComment.create({
+    data: { reviewId: review.id, authorId: req.userId!, body: parsed.data.body },
+    include: { author: { select: COMMENT_AUTHOR_SELECT } }
+  });
+  return res.status(201).json({ comment });
 });

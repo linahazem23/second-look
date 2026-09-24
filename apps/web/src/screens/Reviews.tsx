@@ -231,9 +231,92 @@ function ProductDetail({ productIdentity, category, onBack }: { productIdentity:
             </div>
           )}
           {r.notes && <p style={{ fontSize: 12.5, marginTop: 8 }}>{r.notes}</p>}
+          <ReviewComments commentsPath={`/api/reviews/${r.source === 'community' ? 'community/' : ''}${r.id}/comments`} />
         </div>
       ))}
     </>
+  );
+}
+
+interface ReviewComment {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: { fullName: string; username?: string | null };
+}
+
+// A small, collapsed-by-default Q&A thread under a review — lets a reader ask
+// the reviewer follow-up questions instead of just reading a static rating.
+function ReviewComments({ commentsPath }: { commentsPath: string }) {
+  const [show, setShow] = useState(false);
+  const [comments, setComments] = useState<ReviewComment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    setLoading(true);
+    api.get(commentsPath)
+      .then((res) => setComments(res.comments))
+      .catch((err) => setError(friendlyError(err)))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    if (show) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [show]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!draft.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(commentsPath, { body: draft.trim() });
+      setDraft('');
+      load();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '0.5px solid var(--line)' }}>
+      <button
+        type="button"
+        onClick={() => setShow((v) => !v)}
+        style={{ background: 'none', border: 'none', padding: 0, fontSize: 11.5, color: 'var(--ink-light)', cursor: 'pointer' }}
+      >
+        {show ? 'Hide questions' : 'Ask the reviewer a question'}
+      </button>
+      {show && (
+        <>
+          {loading && <div className="sub" style={{ marginTop: 6 }}>Loading…</div>}
+          {!loading && comments.length === 0 && <div className="sub" style={{ marginTop: 6 }}>No questions yet.</div>}
+          {comments.map((c) => (
+            <div key={c.id} className="sub" style={{ marginTop: 6 }}>
+              <strong>{c.author.username ?? c.author.fullName}:</strong> {c.body}
+            </div>
+          ))}
+          <form className="row" onSubmit={submit} style={{ marginTop: 8 }}>
+            <input
+              style={{ flex: 1, border: '0.5px solid var(--line)', borderRadius: 8, padding: '6px 10px', fontSize: 12 }}
+              placeholder="Ask a question…"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+            />
+            <button type="submit" className="btn-solid" disabled={busy || !draft.trim()}>
+              <span className="shine" /><span className="label">Ask</span>
+            </button>
+          </form>
+          {error && <p className="field-error">{error}</p>}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -288,6 +371,7 @@ function PersonReviews({ tab }: { tab: 'received' | 'given' }) {
           {tab === 'received' && r.disputeStatus === 'disputed' && (
             <span className="verified-tag">Dispute submitted — a moderator will review it</span>
           )}
+          <ReviewComments commentsPath={`/api/reviews/${r.id}/comments`} />
         </div>
       ))}
     </>
