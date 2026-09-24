@@ -208,8 +208,12 @@ textarea.comment-box { width: 100%; margin-top: 10px; border: 0.5px solid var(--
 .post-form .toggle-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
 
 .toggle-switch-row { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-.post-form .toggle-row .toggle-switch-row { justify-content: space-between; width: 100%; }
-.filter-sheet .field-block .toggle-switch-row { justify-content: center; gap: 10px; width: 100%; }
+/* Both overrides need display: flex repeated here — .post-form label / .filter-sheet
+   .field-block label set display: block with higher specificity than the bare
+   .toggle-switch-row rule above, which otherwise silently wins and collapses this
+   back to normal inline flow (label text immediately followed by the switch). */
+.post-form .toggle-row .toggle-switch-row { display: flex; justify-content: space-between; width: 100%; }
+.filter-sheet .field-block .toggle-switch-row { display: flex; justify-content: center; gap: 10px; width: 100%; }
 .post-form .toggle-row .toggle-switch-row span,
 .filter-sheet .field-block .toggle-switch-row span { font-size: 15px; font-weight: 500; color: var(--ink); }
 .toggle-switch { position: relative; width: 42px; height: 24px; border-radius: 12px; border: none; background: var(--line); flex-shrink: 0; padding: 0; transition: background 0.15s ease; }
@@ -225,8 +229,12 @@ textarea.comment-box { width: 100%; margin-top: 10px; border: 0.5px solid var(--
 .filter-sheet select { width: 100%; border: 0.5px solid var(--line); border-radius: 8px; padding: 9px 10px; font-size: 13px; background: var(--card); color: var(--ink); }
 .filter-btn { display: flex; align-items: center; gap: 6px; }
 .filter-btn .count { background: var(--rose); color: var(--white); border-radius: 8px; font-size: 10px; padding: 1px 6px; }
-.post-form .form-row { display: flex; gap: 16px; margin-top: 14px; }
-.post-form .form-row button { flex: 1; }
+/* Unscoped for the same reason as .discount-hint below — used well outside
+   .post-form too (Pets adopt form, filter sheet, image crop modal, onboarding
+   selfie capture), and a scoped rule there silently fell back to default block
+   flow with no gap/margin at all. */
+.form-row { display: flex; gap: 16px; margin-top: 14px; }
+.form-row button { flex: 1; }
 /* Unscoped so it's sized consistently wherever it's used (sell form, filter
    sheet, edit form) instead of silently falling back to default paragraph
    size — which is also what iOS Safari's text-auto-boost was inflating. */
