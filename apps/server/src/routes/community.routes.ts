@@ -6,6 +6,7 @@ import { requireVerified } from '../lib/access.js';
 import { detectFlaggedKeyword } from '../lib/chatModeration.js';
 import { notifyThreadReply } from '../lib/email.js';
 import { awardPoints, maybeAwardCommunityHelperCharm, POINTS } from '../lib/points.js';
+import { grantDailyActivity } from '../lib/dailyActivity.js';
 
 export const communityRouter = Router();
 
@@ -30,8 +31,9 @@ communityRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
     orderBy: { createdAt: 'desc' },
     include: {
       author: { select: AUTHOR_SELECT },
-      _count: { select: { replies: true, watchers: true } },
-      watchers: req.userId ? { where: { userId: req.userId }, select: { id: true } } : false
+      _count: { select: { replies: true, watchers: true, reactions: true } },
+      watchers: req.userId ? { where: { userId: req.userId }, select: { id: true } } : false,
+      reactions: req.userId ? { where: { userId: req.userId }, select: { id: true } } : false
     }
   });
 
@@ -45,7 +47,9 @@ communityRouter.get('/', optionalAuth, async (req: AuthedRequest, res) => {
       author: t.author,
       replyCount: t._count.replies,
       watcherCount: t._count.watchers,
-      iAmWatching: Array.isArray(t.watchers) && t.watchers.length > 0
+      iAmWatching: Array.isArray(t.watchers) && t.watchers.length > 0,
+      reactionCount: t._count.reactions,
+      iReacted: Array.isArray(t.reactions) && t.reactions.length > 0
     }))
   });
 });
@@ -91,8 +95,9 @@ communityRouter.get('/:id', optionalAuth, async (req: AuthedRequest, res) => {
     include: {
       author: { select: AUTHOR_SELECT },
       replies: { orderBy: { createdAt: 'asc' }, include: { author: { select: AUTHOR_SELECT } } },
-      _count: { select: { watchers: true } },
-      watchers: req.userId ? { where: { userId: req.userId }, select: { id: true } } : false
+      _count: { select: { watchers: true, reactions: true } },
+      watchers: req.userId ? { where: { userId: req.userId }, select: { id: true } } : false,
+      reactions: req.userId ? { where: { userId: req.userId }, select: { id: true } } : false
     }
   });
   if (!thread) return res.status(404).json({ error: 'Thread not found' });
@@ -112,7 +117,9 @@ communityRouter.get('/:id', optionalAuth, async (req: AuthedRequest, res) => {
       author: thread.author,
       replies: thread.replies,
       watcherCount: thread._count.watchers,
-      iAmWatching: Array.isArray(thread.watchers) && thread.watchers.length > 0
+      iAmWatching: Array.isArray(thread.watchers) && thread.watchers.length > 0,
+      reactionCount: thread._count.reactions,
+      iReacted: Array.isArray(thread.reactions) && thread.reactions.length > 0
     }
   });
 });
@@ -187,4 +194,26 @@ communityRouter.post('/:id/watch', requireAuth, async (req: AuthedRequest, res) 
 
   const watcherCount = await prisma.communityThreadWatcher.count({ where: { threadId: thread.id } });
   return res.json({ watching: !existing, watcherCount });
+});
+
+// Reacting toggles the caller's reaction on this thread — the *first* reaction
+// of the calendar day (any thread) also grants a free water charge for a pet.
+// Un-reacting never revokes an already-granted charge.
+communityRouter.post('/:id/react', requireAuth, async (req: AuthedRequest, res) => {
+  const thread = await prisma.communityThread.findUnique({ where: { id: req.params.id } });
+  if (!thread) return res.status(404).json({ error: 'Thread not found' });
+
+  const existing = await prisma.communityReaction.findUnique({
+    where: { threadId_userId: { threadId: thread.id, userId: req.userId! } }
+  });
+
+  if (existing) {
+    await prisma.communityReaction.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.communityReaction.create({ data: { threadId: thread.id, userId: req.userId! } });
+    await grantDailyActivity(req.userId!, 'water_reaction', 'freeWaterCharges');
+  }
+
+  const reactionCount = await prisma.communityReaction.count({ where: { threadId: thread.id } });
+  return res.json({ reacted: !existing, reactionCount });
 });

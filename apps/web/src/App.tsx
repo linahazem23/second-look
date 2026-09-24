@@ -91,6 +91,15 @@ export function App() {
     window.history.replaceState(null, '', window.location.pathname);
   }, [user]);
 
+  // The "open the app daily" side of the pet care loop — idempotent per
+  // calendar day server-side, so calling it once per app load is enough.
+  const dailyCheckinDone = useRef(false);
+  useEffect(() => {
+    if (!user || dailyCheckinDone.current) return;
+    dailyCheckinDone.current = true;
+    api.post('/api/auth/daily-checkin').then(() => refresh()).catch(() => {});
+  }, [user, refresh]);
+
   useEffect(() => {
     if (!user) return;
     let cancelled = false;

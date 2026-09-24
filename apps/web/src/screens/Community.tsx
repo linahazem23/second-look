@@ -29,6 +29,8 @@ interface ThreadSummary {
   replyCount: number;
   watcherCount: number;
   iAmWatching: boolean;
+  reactionCount: number;
+  iReacted: boolean;
 }
 
 interface Reply {
@@ -64,6 +66,16 @@ export function Community({ category, title }: { category?: string; title?: stri
     setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, iAmWatching: !t.iAmWatching, watcherCount: t.watcherCount + (t.iAmWatching ? -1 : 1) } : t)));
     try {
       await api.post(`/api/community/${id}/watch`);
+    } catch (err) {
+      load();
+      setError(friendlyError(err));
+    }
+  }
+
+  async function toggleReaction(id: string) {
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, iReacted: !t.iReacted, reactionCount: t.reactionCount + (t.iReacted ? -1 : 1) } : t)));
+    try {
+      await api.post(`/api/community/${id}/react`);
     } catch (err) {
       load();
       setError(friendlyError(err));
@@ -107,6 +119,13 @@ export function Community({ category, title }: { category?: string; title?: stri
             </div>
           </button>
           <div className="row" style={{ marginTop: 10 }}>
+            <button
+              className={`notify-btn ${t.iReacted ? 'active' : ''}`}
+              aria-label={t.iReacted ? 'Remove reaction' : 'React to this consultation'}
+              onClick={() => toggleReaction(t.id)}
+            >
+              🩷 {t.reactionCount}
+            </button>
             <button
               className={`notify-btn ${t.iAmWatching ? 'active' : ''}`}
               aria-label={t.iAmWatching ? 'Stop notifying me' : 'Notify me about replies'}
@@ -196,6 +215,17 @@ function ThreadDetailView({ threadId, onBack }: { threadId: string; onBack: () =
     }
   }
 
+  async function toggleReaction() {
+    if (!thread) return;
+    setThread({ ...thread, iReacted: !thread.iReacted, reactionCount: thread.reactionCount + (thread.iReacted ? -1 : 1) });
+    try {
+      await api.post(`/api/community/${threadId}/react`);
+    } catch (err) {
+      load();
+      setError(friendlyError(err));
+    }
+  }
+
   async function sendReply(e: React.FormEvent) {
     e.preventDefault();
     if (!draft.trim()) return;
@@ -227,6 +257,13 @@ function ThreadDetailView({ threadId, onBack }: { threadId: string; onBack: () =
         <div className="sub" style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}><Avatar user={thread.author} size={18} /> {displayName(thread.author)}</div>
         <p style={{ fontSize: 13.5, marginTop: 8 }}>{thread.body}</p>
         <div className="row" style={{ marginTop: 10 }}>
+          <button
+            className={`notify-btn ${thread.iReacted ? 'active' : ''}`}
+            aria-label={thread.iReacted ? 'Remove reaction' : 'React to this consultation'}
+            onClick={toggleReaction}
+          >
+            🩷 {thread.reactionCount}
+          </button>
           <button
             className={`notify-btn ${thread.iAmWatching ? 'active' : ''}`}
             aria-label={thread.iAmWatching ? 'Stop notifying me' : 'Notify me about replies'}

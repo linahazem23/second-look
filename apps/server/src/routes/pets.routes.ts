@@ -10,6 +10,10 @@ export const petsRouter = Router();
 // artwork at /pets/<species>-<baby|adult|deluxe>.jpg.
 const SPECIES = ['puppy', 'kitten', 'otter', 'duckling', 'hamster', 'turtle', 'dolphin', 'frog'] as const;
 const MAX_PETS_PER_USER = 2;
+// Same scale as the shop catalog: FEED matches "Apple" (the cheapest food),
+// WATER matches a mid-tier toy's happiness boost.
+const DAILY_FEED_EFFECT = 5;
+const DAILY_WATER_EFFECT = 10;
 
 petsRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
   const [pets, inventory, catalog] = await Promise.all([
@@ -88,4 +92,52 @@ petsRouter.post('/:petId/use-item', requireAuth, async (req: AuthedRequest, res)
   ]);
 
   return res.json({ pet: updatedPet });
+});
+
+petsRouter.post('/:petId/use-daily-feed', requireAuth, async (req: AuthedRequest, res) => {
+  const pet = await prisma.pet.findUnique({ where: { id: req.params.petId } });
+  if (!pet || pet.userId !== req.userId) return res.status(404).json({ error: 'Pet not found' });
+
+  const me = await prisma.user.findUniqueOrThrow({ where: { id: req.userId! } });
+  if (me.freeFeedCharges < 1) return res.status(422).json({ error: "You don't have a free feed available yet — open the app tomorrow for another." });
+
+  const fedPoints = pet.fedPoints + DAILY_FEED_EFFECT;
+  const growthStage = growthStageForFedPoints(fedPoints);
+
+  const [, updatedPet] = await prisma.$transaction([
+    prisma.user.update({ where: { id: req.userId }, data: { freeFeedCharges: { decrement: 1 } } }),
+    prisma.pet.update({ where: { id: pet.id }, data: { fedPoints, growthStage, lastFedAt: new Date() } })
+  ]);
+
+  return res.json({ pet: updatedPet });
+});
+
+petsRouter.post('/:petId/use-daily-water', requireAuth, async (req: AuthedRequest, res) => {
+  const pet = await prisma.pet.findUnique({ where: { id: req.params.petId } });
+  if (!pet || pet.userId !== req.userId) return res.status(404).json({ error: 'Pet not found' });
+
+  const me = await prisma.user.findUniqueOrThrow({ where: { id: req.userId! } });
+  if (me.freeWaterCharges < 1) return res.status(422).json({ error: "You don't have a free water available yet — react to a Community post to earn one." });
+
+  const happiness = Math.min(100, pet.happiness + DAILY_WATER_EFFECT);
+
+  const [, updatedPet] = await prisma.$transaction([
+    prisma.user.update({ where: { id: req.userId }, data: { freeWaterCharges: { decrement: 1 } } }),
+    prisma.pet.update({ where: { id: pet.id }, data: { happiness } })
+  ]);
+
+  return res.json({ pet: updatedPet });
+});
+
+const photoSchema = z.object({ photoUrl: z.string().url().nullable() });
+
+petsRouter.patch('/:petId/photo', requireAuth, async (req: AuthedRequest, res) => {
+  const pet = await prisma.pet.findUnique({ where: { id: req.params.petId } });
+  if (!pet || pet.userId !== req.userId) return res.status(404).json({ error: 'Pet not found' });
+
+  const parsed = photoSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const updated = await prisma.pet.update({ where: { id: pet.id }, data: { photoUrl: parsed.data.photoUrl } });
+  return res.json({ pet: updated });
 });

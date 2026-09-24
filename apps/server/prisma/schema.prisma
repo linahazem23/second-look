@@ -120,6 +120,14 @@ model User {
   // EGP credit from a gift pool with no linked listing — spendable only on a
   // real Second Look order (see Order.storeCreditApplied), never withdrawable.
   storeCredit         Float         @default(0)
+  // Opt-out toggle for the roaming pet animation on Home/Profile — same polarity
+  // style as birthdayBoardHidden.
+  petsRoamingEnabled  Boolean       @default(true)
+  // Consumable daily credits — granted once per calendar day via DailyActivity
+  // (opening the app grants a feed charge, reacting to a Community consultation
+  // grants a water charge), spent via the pet routes.
+  freeFeedCharges     Int           @default(0)
+  freeWaterCharges    Int           @default(0)
   // Growth/referral promo: membership perks (currently: free boosting + a Plus
   // badge) are active whenever membershipExpiresAt is in the future — checked live
   // on every read, never written back on expiry, so there's nothing to "forget".
@@ -153,6 +161,9 @@ model User {
   giftContributions       GiftContribution[]
   pets                    Pet[]
   petInventory            PetInventory[]
+  dailyActivities         DailyActivity[]
+  communityReactions      CommunityReaction[]
+  reviewComments          ReviewComment[]
 }
 
 model VideoSubmission {
@@ -334,6 +345,7 @@ model Review {
   fraudSignals          String[]
   disputeStatus         String      @default("none")
   disputeNote           String?
+  comments              ReviewComment[]
 }
 
 // Open community review of a product/brand, unlinked to any specific order —
@@ -352,6 +364,7 @@ model CommunityProductReview {
   // Reviews space — null means it belongs to the general pool everyone sees.
   category        String?
   createdAt       DateTime @default(now())
+  comments        ReviewComment[]
 }
 
 model ListingReport {
@@ -536,6 +549,7 @@ model CommunityThread {
   createdAt DateTime                 @default(now())
   replies   CommunityReply[]
   watchers  CommunityThreadWatcher[]
+  reactions CommunityReaction[]
 }
 
 model CommunityReply {
@@ -641,6 +655,9 @@ model Pet {
   user        User      @relation(fields: [userId], references: [id])
   species     String
   name        String
+  // An uploaded photo takes precedence over the illustrated species/stage art —
+  // same precedence User.avatarUrl already has over avatarPreset.
+  photoUrl    String?
   growthStage Int       @default(0)
   // Cumulative food "effect" fed over this pet's lifetime — growthStage is
   // derived from this against fixed thresholds (see lib/pets.ts), not stored
@@ -669,4 +686,49 @@ model PetInventory {
   quantity Int    @default(0)
 
   @@unique([userId, itemKey])
+}
+
+// Once-per-calendar-day grant record AND the idempotency mechanism for daily
+// feed/water charges — same idea as PointsLedger's unique constraint: a second
+// grant attempt for the same (userId, kind, day) fails on insert (P2002)
+// instead of racing a check-then-increment.
+model DailyActivity {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  kind      String   // feed_checkin | water_reaction
+  day       DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@unique([userId, kind, day])
+}
+
+// A simple per-user-per-thread reaction toggle on a Community consultation —
+// mirrors CommunityThreadWatcher's exact shape. The first reaction of the day
+// (any thread) also grants a free water charge, handled in the route.
+model CommunityReaction {
+  id        String          @id @default(cuid())
+  threadId  String
+  thread    CommunityThread @relation(fields: [threadId], references: [id])
+  userId    String
+  user      User            @relation(fields: [userId], references: [id])
+  createdAt DateTime        @default(now())
+
+  @@unique([threadId, userId])
+}
+
+// A lightweight Q&A thread attached to a review — exactly one of reviewId /
+// communityProductReviewId is set (enforced at the route, not here), since
+// product/person reviews and instant community reviews are two different
+// parent tables.
+model ReviewComment {
+  id                      String                  @id @default(cuid())
+  reviewId                String?
+  review                  Review?                 @relation(fields: [reviewId], references: [id])
+  communityProductReviewId String?
+  communityProductReview  CommunityProductReview? @relation(fields: [communityProductReviewId], references: [id])
+  authorId                String
+  author                  User                    @relation(fields: [authorId], references: [id])
+  body                    String
+  createdAt               DateTime                @default(now())
 }

@@ -23,6 +23,9 @@ export interface CurrentUser {
   birthday: string | null;
   birthdayBoardHidden: boolean;
   storeCredit: number;
+  petsRoamingEnabled: boolean;
+  freeFeedCharges: number;
+  freeWaterCharges: number;
   createdAt: string;
 }
 

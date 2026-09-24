@@ -28,3 +28,9 @@ export function petImageSrc(species: string, growthStage: number): string {
 export function speciesLabel(species: string): string {
   return PET_SPECIES.find((s) => s.key === species)?.label ?? species;
 }
+
+// A member's own uploaded photo takes precedence over the illustrated
+// species/stage art — same precedence order as Avatar.tsx's avatarUrl over avatarPreset.
+export function petDisplayImage(pet: { photoUrl?: string | null; species: string; growthStage: number }): string {
+  return pet.photoUrl ?? petImageSrc(pet.species, pet.growthStage);
+}

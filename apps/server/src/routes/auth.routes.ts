@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword, signUserToken, requireAuth, type AuthedRe
 import { generateUniqueReferralCode, isPlusActive } from '../lib/membership.js';
 import { notifyGuardianConsentRequest, notifyPasswordReset, notifyWelcome } from '../lib/email.js';
 import { awardPoints, awardCharm, POINTS } from '../lib/points.js';
+import { grantDailyActivity } from '../lib/dailyActivity.js';
 import { upload, uploadToStorage } from '../lib/upload.js';
 
 export const authRouter = Router();
@@ -312,6 +313,24 @@ authRouter.patch('/birthday', requireAuth, async (req: AuthedRequest, res) => {
 
   const user = await prisma.user.update({ where: { id: req.userId }, data });
   return res.json({ birthday: user.birthday, birthdayBoardHidden: user.birthdayBoardHidden });
+});
+
+// Called once when the app loads — the "open the app daily" side of the pet
+// care loop. Idempotent per calendar day via DailyActivity's unique constraint.
+authRouter.post('/daily-checkin', requireAuth, async (req: AuthedRequest, res) => {
+  const granted = await grantDailyActivity(req.userId!, 'feed_checkin', 'freeFeedCharges');
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
+  return res.json({ granted, freeFeedCharges: user.freeFeedCharges });
+});
+
+const petsRoamingSchema = z.object({ enabled: z.boolean() });
+
+authRouter.patch('/pets-roaming', requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = petsRoamingSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
+
+  const user = await prisma.user.update({ where: { id: req.userId }, data: { petsRoamingEnabled: parsed.data.enabled } });
+  return res.json({ petsRoamingEnabled: user.petsRoamingEnabled });
 });
 
 const profileQuizSchema = z.object({
