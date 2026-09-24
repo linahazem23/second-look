@@ -767,7 +767,7 @@ function SellForm({ onPosted }: { onPosted: () => void }) {
   return (
     <form className="post-form" onSubmit={handleSubmit}>
       <label>Item name</label>
-      <input required value={title} onChange={(e) => setTitle(e.target.value)} />
+      <input required autoComplete="off" value={title} onChange={(e) => setTitle(e.target.value)} />
 
       <label>Category</label>
       <select value={category} onChange={(e) => setCategory(e.target.value)}>

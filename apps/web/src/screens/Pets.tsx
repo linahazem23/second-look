@@ -304,7 +304,7 @@ function AdoptForm({ onAdopted }: { onAdopted: () => void }) {
         ))}
       </div>
       <label className="field-label">Name your pet</label>
-      <input className="field-input" required value={name} onChange={(e) => setName(e.target.value)} maxLength={30} />
+      <input className="field-input" required autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} maxLength={30} />
       {error && <p className="field-error">{error}</p>}
       <div className="form-row">
         <button type="submit" className="btn-solid" disabled={busy || !name.trim()}>
