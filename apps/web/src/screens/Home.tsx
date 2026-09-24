@@ -305,7 +305,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
 
       <div className="post-btn-wrap">
         <button className="post-toggle" onClick={tapSell}>
-          <Icon name="plus" size={16} /> {showSellForm ? 'Cancel' : 'Sell an item'}
+          <Icon name={showSellForm ? 'minus' : 'plus'} size={16} /> {showSellForm ? 'Cancel' : 'Sell an item'}
         </button>
       </div>
 

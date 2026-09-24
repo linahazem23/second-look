@@ -208,7 +208,7 @@ textarea.comment-box { width: 100%; margin-top: 10px; border: 0.5px solid var(--
 .post-form .toggle-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
 
 .toggle-switch-row { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-.post-form .toggle-row .toggle-switch-row,
+.post-form .toggle-row .toggle-switch-row { justify-content: space-between; width: 100%; }
 .filter-sheet .field-block .toggle-switch-row { justify-content: center; gap: 10px; width: 100%; }
 .post-form .toggle-row .toggle-switch-row span,
 .filter-sheet .field-block .toggle-switch-row span { font-size: 15px; font-weight: 500; color: var(--ink); }

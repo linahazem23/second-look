@@ -37,12 +37,14 @@ enum ListingStatus {
 }
 
 enum OrderEscrowStatus {
+  AwaitingDeliveryMethod
   AwaitingPayment
   InEscrow
   PaymentFailed
   PaymentReleased
   Disputed
   Refunded
+  Expired
 }
 
 enum DeliveryMethod {
@@ -261,7 +263,11 @@ model Order {
   amount            Float
   buyerProtectionFee Float              @default(0)
   deliveryMethod    DeliveryMethod?
-  escrowStatus      OrderEscrowStatus   @default(AwaitingPayment)
+  escrowStatus      OrderEscrowStatus   @default(AwaitingDeliveryMethod)
+  // Buy Now reserves the listing and opens chat immediately, before any payment —
+  // the buyer has this long to pick a delivery method (and pay, if it's a paid
+  // courier method) before the hold lazily expires and the listing reopens.
+  holdExpiresAt     DateTime?
   paymobOrderId     String?
   // The actual Paymob transaction id from the webhook (distinct from paymobOrderId,
   // Paymob's *order* id) — needed to issue a refund against this specific charge.

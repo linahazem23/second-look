@@ -19,7 +19,10 @@ const PREFIX_TONE: [string, 'ok' | 'warn' | 'danger' | 'neutral'][] = [
   ['pending', 'warn'],
   ['manual_review', 'warn'],
   ['InEscrow', 'neutral'],
-  ['resolved', 'neutral']
+  ['resolved', 'neutral'],
+  ['AwaitingDeliveryMethod', 'warn'],
+  ['AwaitingPayment', 'warn'],
+  ['Expired', 'danger']
 ];
 
 export function Pill({ value }: { value: string }) {

@@ -9,12 +9,23 @@ import { DeliveryFeedbackModal } from './DeliveryFeedbackModal.js';
 import { Avatar } from '../Avatar.js';
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
+  AwaitingDeliveryMethod: 'Choose a delivery method',
   AwaitingPayment: 'Waiting for payment',
   InEscrow: 'Payment held safely',
   PaymentFailed: 'Payment failed',
   PaymentReleased: 'Payment released to seller',
-  Disputed: 'Under review'
+  Disputed: 'Under review',
+  Expired: 'Offer expired'
 };
+
+function timeRemaining(holdExpiresAt: string | null): string | null {
+  if (!holdExpiresAt) return null;
+  const ms = new Date(holdExpiresAt).getTime() - Date.now();
+  if (ms <= 0) return null;
+  const hours = Math.floor(ms / (60 * 60 * 1000));
+  const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
 
 const DELIVERY_LABELS: Record<string, string> = {
   Meetup: 'Meetup',
@@ -51,6 +62,7 @@ interface OrderSummary {
   buyerProtectionFee: number;
   deliveryMethod: string | null;
   escrowStatus: string;
+  holdExpiresAt: string | null;
   listing: { title: string; price: number; images: string[] };
   buyer: { id: string; fullName: string; username?: string | null; avatarUrl: string | null; avatarPreset: string | null };
   seller: { id: string; fullName: string; username?: string | null; avatarUrl: string | null; avatarPreset: string | null };
@@ -670,7 +682,23 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
       </div>
       <div className="mod-banner"><Icon name="flag" size={12} /> Conversations on Second Look may be reviewed for safety.</div>
 
-      {order.escrowStatus === 'AwaitingPayment' ? (
+      {order.escrowStatus === 'AwaitingDeliveryMethod' || (order.escrowStatus === 'InEscrow' && !order.deliveryMethod) ? (
+        <div className="plain-card" style={{ margin: '10px 18px 0' }}>
+          <div className="sub">How will this item get to you?</div>
+          <div className="delivery-pills" style={{ marginTop: 8 }}>
+            {DELIVERY_METHODS.map((m) => (
+              <button key={m.value} type="button" className="delivery-pill" disabled={busy} onClick={() => chooseDeliveryMethod(m.value)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {timeRemaining(order.holdExpiresAt) && (
+            <div className="sub" style={{ marginTop: 8, fontSize: 11.5 }}>
+              Choose within {timeRemaining(order.holdExpiresAt)} or this reservation expires and the listing goes back on the marketplace.
+            </div>
+          )}
+        </div>
+      ) : order.escrowStatus === 'AwaitingPayment' ? (
         <div className="plain-card" style={{ margin: '10px 18px 0' }}>
           {isBuyer ? (
             <>
@@ -694,6 +722,11 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
           ) : (
             <div className="sub">Waiting on the buyer's payment — you'll receive {order.listing.price} EGP for this item once it's confirmed delivered.</div>
           )}
+          {timeRemaining(order.holdExpiresAt) && (
+            <div className="sub" style={{ marginTop: 6, fontSize: 11.5 }}>
+              {isBuyer ? 'Pay' : 'They have'} within {timeRemaining(order.holdExpiresAt)} or this reservation expires and the listing goes back on the marketplace.
+            </div>
+          )}
           <div className="row" style={{ marginTop: 8 }}>
             {isBuyer ? (
               <button className="btn-solid" disabled={busy} onClick={payNow}>
@@ -708,20 +741,19 @@ function ChatThread({ orderId, onBack }: { orderId: string; onBack: () => void }
         <div className="plain-card" style={{ margin: '10px 18px 0' }}>
           <div className="sub">Payment didn't go through, so this order didn't proceed. The listing is active again.</div>
         </div>
-      ) : !order.deliveryMethod ? (
+      ) : order.escrowStatus === 'Expired' ? (
         <div className="plain-card" style={{ margin: '10px 18px 0' }}>
-          <div className="sub">How will this item get to you?</div>
-          <div className="delivery-pills" style={{ marginTop: 8 }}>
-            {DELIVERY_METHODS.map((m) => (
-              <button key={m.value} type="button" className="delivery-pill" disabled={busy} onClick={() => chooseDeliveryMethod(m.value)}>
-                {m.label}
-              </button>
-            ))}
-          </div>
+          <div className="sub">This reservation expired before a delivery method (and payment, if needed) was completed in time. The listing is active again.</div>
         </div>
       ) : (
       <div className="plain-card" style={{ margin: '10px 18px 0' }}>
-        <div className="sub">Order status: <strong>{ORDER_STATUS_LABELS[order.escrowStatus] ?? order.escrowStatus}</strong></div>
+        <div className="sub">
+          Order status: <strong>
+            {order.escrowStatus === 'InEscrow' && order.deliveryMethod === 'Meetup'
+              ? 'Meetup arranged'
+              : ORDER_STATUS_LABELS[order.escrowStatus] ?? order.escrowStatus}
+          </strong>
+        </div>
         {order.trackingLinks.length > 0 && (
           <div className="sub">Tracking: <a href={order.trackingLinks[0].url} target="_blank" rel="noreferrer">{order.trackingLinks[0].url}</a></div>
         )}

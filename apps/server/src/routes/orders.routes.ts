@@ -13,6 +13,15 @@ export const ordersRouter = Router();
 const DELIVERY_METHODS = ['Meetup', 'UberCourier', 'InDrive', 'BostaMylerz'] as const;
 const REVIEW_UNLOCK_WAIT_DAYS = 6;
 const SELLER_PLUS_OFFER_THRESHOLD = 5;
+// Buy Now reserves the listing and opens chat right away, before any money moves —
+// the buyer has this long to pick a delivery method (and pay, if it's a paid
+// courier method) before the hold lazily expires and the listing reopens.
+const HOLD_WINDOW_HOURS = 3;
+// Safety net only — protects a seller whose buyer goes silent after a courier
+// delivery, not the normal path. The buyer can still confirm early or dispute
+// any time before this; only orders with no online payment held (Meetup) are
+// exempt, since there's nothing sitting in escrow to release for those.
+const AUTO_RELEASE_WINDOW_DAYS = 2;
 
 const createOrderSchema = z.object({
   listingId: z.string().min(1)
@@ -21,8 +30,12 @@ const createOrderSchema = z.object({
 /**
  * Shared by a direct Buy and by an accepted negotiation offer — `priceOverride`
  * lets an accepted offer create the order at the agreed amount instead of the
- * listing's asking price. Deal is finalized at payment/escrow, so the listing
- * comes off the active feed immediately either way.
+ * listing's asking price. Deal is finalized once a delivery method is chosen
+ * (and paid, if required), but the listing comes off the active feed immediately
+ * either way, guarded by `holdExpiresAt` in case the buyer never finishes.
+ *
+ * No buyer protection fee is charged yet — whether one applies at all depends
+ * on the delivery method, chosen afterwards from inside the order chat.
  */
 export async function createOrderForListing(listingId: string, buyerId: string, priceOverride?: number) {
   const listing = await prisma.listing.findUnique({ where: { id: listingId }, include: { seller: true } });
@@ -30,7 +43,7 @@ export async function createOrderForListing(listingId: string, buyerId: string, 
   if (listing.sellerId === buyerId) throw new Error('You cannot buy your own listing');
 
   const itemPrice = priceOverride ?? listing.price;
-  const buyerProtectionFee = calcBuyerProtectionFee(itemPrice);
+  const holdExpiresAt = new Date(Date.now() + HOLD_WINDOW_HOURS * 60 * 60 * 1000);
 
   // Two buyers tapping Buy at the same instant both pass the check above — what
   // actually decides the winner is this conditional UPDATE. Postgres locks the
@@ -46,8 +59,8 @@ export async function createOrderForListing(listingId: string, buyerId: string, 
         buyerId,
         sellerId: listing.sellerId,
         listingId: listing.id,
-        amount: itemPrice + buyerProtectionFee,
-        buyerProtectionFee
+        amount: itemPrice,
+        holdExpiresAt
       }
     });
   });
@@ -108,8 +121,82 @@ export async function createOrderFromGiftPool(poolId: string, listingId: string,
   return order;
 }
 
-// Delivery method is chosen afterwards, from inside the order chat — Buy only
-// starts the payment hold and connects buyer and seller.
+/**
+ * Lazy expiry, run on read — matches this codebase's existing preference (see
+ * birthdays.routes.ts's expireOverduePools) over a background job. A buyer who
+ * never finishes picking a delivery method (and paying, if required) within the
+ * hold window loses the reservation; the listing goes back to Active so it
+ * isn't stuck off the marketplace for someone who abandoned the purchase.
+ */
+async function expireStaleOrders() {
+  const stale = await prisma.order.findMany({
+    where: { escrowStatus: { in: ['AwaitingDeliveryMethod', 'AwaitingPayment'] }, holdExpiresAt: { lt: new Date() } },
+    select: { id: true, listingId: true }
+  });
+  for (const order of stale) {
+    await prisma.$transaction([
+      prisma.order.update({ where: { id: order.id }, data: { escrowStatus: 'Expired' } }),
+      prisma.listing.updateMany({ where: { id: order.listingId, status: 'Sold' }, data: { status: 'Active' } })
+    ]);
+  }
+}
+
+/**
+ * Shared by the buyer's manual Confirm delivery tap and the auto-release safety
+ * net below — moves an order from InEscrow to PaymentReleased and runs the same
+ * seller-side side effects (sale count, points, first-sale charm) either way.
+ */
+async function releaseOrderPayout(orderId: string) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order || order.escrowStatus !== 'InEscrow') return null;
+
+  const now = new Date();
+  const reviewUnlockAt = new Date(now.getTime() + REVIEW_UNLOCK_WAIT_DAYS * 24 * 60 * 60 * 1000);
+
+  const [updatedOrder, seller] = await prisma.$transaction([
+    prisma.order.update({
+      where: { id: order.id },
+      data: {
+        deliveryConfirmed: true,
+        deliveryConfirmedAt: now,
+        escrowStatus: 'PaymentReleased',
+        paymentReleasedAt: now,
+        reviewUnlockAt
+      }
+    }),
+    prisma.user.update({ where: { id: order.sellerId }, data: { completedSalesCount: { increment: 1 } } })
+  ]);
+
+  await awardPoints(order.sellerId, POINTS.SALE_COMPLETED, 'sale_completed', order.id);
+  if (seller.completedSalesCount === 1) await awardCharm(order.sellerId, 'first_sale');
+
+  return { updatedOrder, seller };
+}
+
+/**
+ * Safety net for a buyer who goes silent after a courier delivery — without
+ * this, a seller could be stuck unpaid forever since only the buyer can tap
+ * Confirm delivery. Only orders with real money in escrow qualify (Meetup has
+ * none — cash changes hands in person), and only once AUTO_RELEASE_WINDOW_DAYS
+ * has passed since the tracking link went up, giving the buyer a full window to
+ * confirm early or dispute before anything moves automatically.
+ */
+async function autoReleaseStaleEscrow() {
+  const cutoff = new Date(Date.now() - AUTO_RELEASE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const candidates = await prisma.order.findMany({
+    where: {
+      escrowStatus: 'InEscrow',
+      deliveryMethod: { notIn: ['Meetup'] },
+      trackingLinks: { some: { createdAt: { lt: cutoff } } }
+    },
+    select: { id: true }
+  });
+  for (const order of candidates) await releaseOrderPayout(order.id);
+}
+
+// Delivery method is chosen first, from inside the order chat — Buy only opens
+// the chat and starts the hold window. Only a paid courier method then needs
+// an actual payment; Meetup settles in person with nothing held in escrow.
 ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, res) => {
   const parsed = createOrderSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
@@ -126,10 +213,12 @@ ordersRouter.post('/', requireAuth, requireVerified, async (req: AuthedRequest, 
 // key — and hands back the hosted iframe URL to redirect the buyer to. Escrow
 // only actually starts once Paymob's webhook confirms a successful charge.
 ordersRouter.post('/:id/pay', requireAuth, async (req: AuthedRequest, res) => {
+  await expireStaleOrders();
+
   const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { buyer: true } });
   if (!order) return res.status(404).json({ error: 'Order not found' });
   if (order.buyerId !== req.userId) return res.status(403).json({ error: 'Only the buyer can pay for this order' });
-  if (order.escrowStatus !== 'AwaitingPayment') return res.status(409).json({ error: 'This order is not awaiting payment' });
+  if (order.escrowStatus !== 'AwaitingPayment') return res.status(409).json({ error: 'This order is not awaiting payment — it may have expired.' });
 
   // Store credit (from a funded birthday gift pool with no linked listing) is
   // applied automatically to reduce what's actually charged — it can only ever
@@ -174,10 +263,19 @@ ordersRouter.post('/:id/pay', requireAuth, async (req: AuthedRequest, res) => {
 const deliveryMethodSchema = z.object({ deliveryMethod: z.enum(DELIVERY_METHODS) });
 
 ordersRouter.post('/:id/delivery-method', requireAuth, async (req: AuthedRequest, res) => {
+  await expireStaleOrders();
+
   const order = await prisma.order.findUnique({ where: { id: req.params.id } });
   if (!order) return res.status(404).json({ error: 'Order not found' });
   if (order.buyerId !== req.userId && order.sellerId !== req.userId) return res.status(403).json({ error: 'Not your order' });
-  if (order.escrowStatus !== 'InEscrow') return res.status(409).json({ error: 'Delivery method can only be set once payment is confirmed' });
+
+  // A gift-pool-funded order (see createOrderFromGiftPool) is already fully paid
+  // before any delivery method exists — it lands straight in InEscrow with
+  // deliveryMethod still null. Everything else starts in AwaitingDeliveryMethod.
+  const alreadyPaid = order.escrowStatus === 'InEscrow' && !order.deliveryMethod;
+  if (!alreadyPaid && order.escrowStatus !== 'AwaitingDeliveryMethod') {
+    return res.status(409).json({ error: 'Delivery method has already been set for this order, or it has expired.' });
+  }
 
   const parsed = deliveryMethodSchema.safeParse(req.body);
   if (!parsed.success) return res.status(422).json({ error: parsed.error.flatten() });
@@ -187,11 +285,42 @@ ordersRouter.post('/:id/delivery-method', requireAuth, async (req: AuthedRequest
     return res.status(422).json({ error: 'Integrated courier delivery is coming soon and not yet available.' });
   }
 
-  const updated = await prisma.order.update({ where: { id: order.id }, data: { deliveryMethod: parsed.data.deliveryMethod } });
+  // Already paid in full (gift pool) — just record the method, nothing else changes.
+  if (alreadyPaid) {
+    const updated = await prisma.order.update({ where: { id: order.id }, data: { deliveryMethod: parsed.data.deliveryMethod } });
+    return res.json({ order: updated });
+  }
+
+  // Meetup settles in person — no buyer protection fee, no online payment, no
+  // escrow hold. The order moves straight to InEscrow purely so it flows through
+  // the same tracking/confirm/review pipeline as a paid order, with $0 actually held.
+  if (parsed.data.deliveryMethod === 'Meetup') {
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { deliveryMethod: 'Meetup', buyerProtectionFee: 0, escrowStatus: 'InEscrow', holdExpiresAt: null }
+    });
+    return res.json({ order: updated });
+  }
+
+  // A courier method still needs an actual payment — buyer protection fee now
+  // applies, and the buyer has the rest of the hold window to pay it.
+  const buyerProtectionFee = calcBuyerProtectionFee(order.amount);
+  const updated = await prisma.order.update({
+    where: { id: order.id },
+    data: {
+      deliveryMethod: parsed.data.deliveryMethod,
+      buyerProtectionFee,
+      amount: order.amount + buyerProtectionFee,
+      escrowStatus: 'AwaitingPayment'
+    }
+  });
   return res.json({ order: updated });
 });
 
 ordersRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
+  await expireStaleOrders();
+  await autoReleaseStaleEscrow();
+
   const orders = await prisma.order.findMany({
     where: { OR: [{ buyerId: req.userId }, { sellerId: req.userId }] },
     orderBy: { createdAt: 'desc' },
@@ -215,6 +344,9 @@ ordersRouter.get('/mine', requireAuth, async (req: AuthedRequest, res) => {
 });
 
 ordersRouter.get('/:id', requireAuth, async (req: AuthedRequest, res) => {
+  await expireStaleOrders();
+  await autoReleaseStaleEscrow();
+
   const order = await prisma.order.findUnique({
     where: { id: req.params.id },
     include: {
@@ -235,30 +367,11 @@ ordersRouter.post('/:id/confirm-delivery', requireAuth, async (req: AuthedReques
   if (order.buyerId !== req.userId) return res.status(403).json({ error: 'Only the buyer confirms delivery' });
   if (order.escrowStatus !== 'InEscrow') return res.status(409).json({ error: 'Order is not currently in escrow' });
 
-  const now = new Date();
-  const reviewUnlockAt = new Date(now.getTime() + REVIEW_UNLOCK_WAIT_DAYS * 24 * 60 * 60 * 1000);
-
-  const [updatedOrder, seller] = await prisma.$transaction([
-    prisma.order.update({
-      where: { id: order.id },
-      data: {
-        deliveryConfirmed: true,
-        deliveryConfirmedAt: now,
-        escrowStatus: 'PaymentReleased',
-        paymentReleasedAt: now,
-        reviewUnlockAt
-      }
-    }),
-    prisma.user.update({ where: { id: order.sellerId }, data: { completedSalesCount: { increment: 1 } } })
-  ]);
-
+  const result = await releaseOrderPayout(order.id);
   const offerMonetizationChoice =
-    seller.completedSalesCount === SELLER_PLUS_OFFER_THRESHOLD && !seller.monetizationMode;
+    result!.seller.completedSalesCount === SELLER_PLUS_OFFER_THRESHOLD && !result!.seller.monetizationMode;
 
-  await awardPoints(order.sellerId, POINTS.SALE_COMPLETED, 'sale_completed', order.id);
-  if (seller.completedSalesCount === 1) await awardCharm(order.sellerId, 'first_sale');
-
-  return res.json({ order: updatedOrder, offerMonetizationChoice });
+  return res.json({ order: result!.updatedOrder, offerMonetizationChoice });
 });
 
 const CONDITION_RATINGS = ['as_described', 'slightly_different', 'not_as_described'] as const;

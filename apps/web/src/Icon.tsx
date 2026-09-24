@@ -5,6 +5,7 @@ const PATHS: Record<string, string> = {
   comb: '<path d="M4 4h16v4H4z"/><path d="M6 8v12M9.5 8v12M13 8v12M16.5 8v12M20 8v12"/>',
   bottle: '<path d="M9 2h6v3H9z"/><path d="M8 5h8v3l1 1v10a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V9l1-1V5Z"/><line x1="8" y1="13" x2="16" y2="13"/>',
   plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
   arrowLeft: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
   check: '<polyline points="20 6 9 17 4 12"/>',
   menu: '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>',

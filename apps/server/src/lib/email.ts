@@ -173,7 +173,7 @@ export async function notifyOrderPlaced(params: { sellerEmail: string; sellerNam
         <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px 0;">
           <p style="font-family: Georgia, serif; font-size: 20px; color: #5A2E3D; margin: 0 0 16px;">Second Look</p>
           <p style="color: #37202A; font-size: 15px;">Hi ${escapeHtml(params.sellerName)}, great news — <strong>${escapeHtml(params.itemTitle)}</strong> just sold for ${params.amount} EGP.</p>
-          <p style="color: #37202A; font-size: 15px;">The buyer's payment is held safely with Second Look. Open the order to agree on a delivery method and chat with the buyer.</p>
+          <p style="color: #37202A; font-size: 15px;">Open the order to agree on a delivery method and chat with the buyer — any payment is held safely with Second Look until she confirms delivery.</p>
           <a href="${link}" style="display: inline-block; margin-top: 12px; background: #C6597A; color: #fff; padding: 11px 22px; border-radius: 100px; text-decoration: none; font-size: 14px; font-weight: 600;">View the order</a>
         </div>
       `
