@@ -3,6 +3,11 @@ export function displayName(user: { fullName: string; username?: string | null }
   return user.username || user.fullName;
 }
 
+/** For a private, first-person greeting (e.g. Home's "Hi, ...") — her real first name, never the pseudonym. */
+export function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0];
+}
+
 // A whole persona to pick from, not "name + a number" — a blank username field
 // asks her to invent something on the spot, so a ready-made pool in the app's
 // own voice gives her something to just accept or tweak instead.

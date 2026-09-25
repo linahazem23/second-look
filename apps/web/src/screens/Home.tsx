@@ -7,7 +7,7 @@ import { ReportListingModal } from './ReportListingModal.js';
 import { LocationAreaField } from '../LocationArea.js';
 import { Toggle } from '../Toggle.js';
 import { Explore } from './Explore.js';
-import { displayName } from '../identity.js';
+import { displayName, firstName } from '../identity.js';
 import { Avatar } from '../Avatar.js';
 import { maxAllowedPrice } from '../pricing.js';
 
@@ -118,6 +118,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   }, [category]);
 
   const activeFilterCount = [sortDir, conditionFilter, areaFilter, sizeFilter, skinTypeFilter, hairTypeFilter].filter(Boolean).length + (allowOffersOnly ? 1 : 0);
+  const boostedListings = listings.filter((l) => l.boosted);
 
   async function load() {
     setLoading(true);
@@ -250,10 +251,9 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
 
   return (
     <>
-      <p className="home-greeting">{user?.isMother ? 'Hiii Mamasita ✨' : 'Hiii Bestie'}</p>
       <div className="home-header">
         <div className="section-head">
-          <h1>{user ? `Hi, ${displayName(user)}` : 'For you'}</h1>
+          <h1>{user ? `Hi, ${firstName(user.fullName)}` : 'For you'}</h1>
           <p>Skincare, makeup, haircare, and clothes from verified sellers</p>
         </div>
         {user && <Avatar user={user} size={44} />}
@@ -355,6 +355,25 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
       {loading && <div className="empty-state">Loading listings…</div>}
       {error && <div className="empty-state">{error}</div>}
       {!loading && !error && listings.length === 0 && <div className="empty-state">Nothing here yet — be the queen that sells first 👑</div>}
+
+      {!loading && !error && boostedListings.length > 0 && (
+        <div className="boosted-section">
+          <div className="section-head" style={{ padding: '4px 18px 0' }}>
+            <h1 style={{ fontSize: 15 }}>✨ Boosted</h1>
+          </div>
+          <div className="boosted-strip">
+            {boostedListings.map((item) => (
+              <div key={item.id} className="boosted-card" onClick={() => setViewingItem(item)}>
+                <div className="thumb">
+                  {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={20} />}
+                </div>
+                <div className="name">{item.title}</div>
+                <div className="price">{item.price} EGP</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!loading && !error && listings.length > 0 && (
         <>

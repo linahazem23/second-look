@@ -19,17 +19,12 @@ export function RewardsPanel() {
     api.get('/api/auth/charms').then((res) => setCharms(res.charms)).catch(() => {});
   }, []);
 
-  if (!user) return null;
+  if (!user || charms.length === 0) return null;
 
   return (
     <div className="plain-card">
-      <div className="row" style={{ marginTop: 0, gap: 18 }}>
-        <div><strong style={{ fontFamily: 'Fraunces, serif', fontSize: 16 }}>{user.points}</strong><div className="sub">points</div></div>
-      </div>
-      {charms.length > 0 && (
-        <>
-          <div className="sub" style={{ marginTop: 10 }}>Charms</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+      <h3>Charms</h3>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
             {charms.map((c) => (
               <div
                 key={c.id}
@@ -45,9 +40,7 @@ export function RewardsPanel() {
                 <div style={{ fontSize: 9.5, color: 'var(--ink-light)', marginTop: 2, lineHeight: 1.2 }}>{c.label}</div>
               </div>
             ))}
-          </div>
-        </>
-      )}
+      </div>
     </div>
   );
 }

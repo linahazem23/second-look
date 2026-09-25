@@ -104,6 +104,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
 
   return (
     <>
+      <p className="home-greeting">{user.isMother ? 'Hiii Mamasita ✨' : 'Hiii Bestie'}</p>
       <div className="section-head">
         <button className="back-btn" onClick={onBack}><Icon name="arrowLeft" size={18} /></button>
         <Avatar user={user} size={44} />
@@ -113,13 +114,13 @@ export function Profile({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <div className="plain-card">
-        <div className="row" style={{ marginTop: 0, gap: 18 }}>
-          <div><strong style={{ fontFamily: 'Fraunces, serif', fontSize: 16 }}>{user.completedSalesCount}</strong><div className="sub">completed sales</div></div>
-          <div><strong style={{ fontFamily: 'Fraunces, serif', fontSize: 16 }}>{user.verifiedFemale ? 'Yes' : 'Pending'}</strong><div className="sub">verified</div></div>
+      {isNewSeller && (
+        <div className="plain-card">
+          <span className="match-badge" style={{ display: 'inline-block' }}>New here — be one of her first sales!</span>
         </div>
-        {isNewSeller && <span className="match-badge" style={{ marginTop: 10, display: 'inline-block' }}>New here — be one of her first sales!</span>}
-      </div>
+      )}
+
+      <ProgressPanel completedSalesCount={user.completedSalesCount} verified={user.verifiedFemale} points={user.points} />
 
       <RewardsPanel />
 
@@ -201,6 +202,30 @@ export function Profile({ onBack }: { onBack: () => void }) {
         ))}
       </div>
     </>
+  );
+}
+
+// A big highlighted stat plus a couple of supporting tiles — same visual idea
+// as a "my progress" summary card, built from data that already exists
+// (points, completed sales, verification) rather than a new streak feature.
+function ProgressPanel({ completedSalesCount, verified, points }: { completedSalesCount: number; verified: boolean; points: number }) {
+  return (
+    <div className="plain-card">
+      <div className="progress-hero">
+        <div className="sub">Your points</div>
+        <div className="progress-hero-value">{points}</div>
+      </div>
+      <div className="progress-grid">
+        <div className="progress-tile">
+          <div className="progress-tile-value">{completedSalesCount}</div>
+          <div className="sub">Completed sales</div>
+        </div>
+        <div className="progress-tile">
+          <div className="progress-tile-value">{verified ? 'Verified' : 'Pending'}</div>
+          <div className="sub">Identity check</div>
+        </div>
+      </div>
+    </div>
   );
 }
 
