@@ -55,7 +55,7 @@ export function Explore() {
         {!areaLoading && (
           <div className="grid">
             {areaListings.map((item) => (
-              <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`}>
+              <div key={item.id} className="listing-card">
                 <div className="thumb">
                   {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={24} />}
                 </div>

@@ -355,9 +355,19 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
             {listings.map((item, idx) => (
               <React.Fragment key={item.id}>
                 {idx === 2 && <AdCard ad={activeAd} />}
-              <div className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`} onClick={() => setViewingItem(item)} style={{ cursor: 'pointer' }}>
-                <div className="thumb">
-                  {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={24} />}
+              <div className="listing-card" onClick={() => setViewingItem(item)} style={{ cursor: 'pointer' }}>
+                <div className="card-media">
+                  <div className="thumb">
+                    {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={24} />}
+                  </div>
+                  <button
+                    type="button"
+                    className={`card-save-btn ${item.savedByMe ? 'saved' : ''}`}
+                    aria-label={item.savedByMe ? 'Unsave' : 'Save'}
+                    onClick={(e) => { e.stopPropagation(); toggleSave(item); }}
+                  >
+                    <Icon name="want" size={15} />
+                  </button>
                 </div>
                 <div className="info">
                   <div className="name">{item.title}</div>
@@ -394,14 +404,6 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
                         </button>
                       )
                     )}
-                    <button
-                      className="card-icon-btn"
-                      aria-label={item.savedByMe ? 'Unsave' : 'Save'}
-                      style={{ color: item.savedByMe ? 'var(--rose)' : 'var(--ink-light)' }}
-                      onClick={(e) => { e.stopPropagation(); toggleSave(item); }}
-                    >
-                      <Icon name="want" size={13} />
-                    </button>
                     {item.seller.id !== user?.id && (
                       <button
                         className="card-icon-btn"
@@ -427,7 +429,7 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
 function AdCard({ ad }: { ad: ActiveAd | null }) {
   const href = ad?.linkUrl ?? 'mailto:ads@trysecondlook.app?subject=Advertise%20on%20Second%20Look';
   return (
-    <a href={href} target={ad?.linkUrl ? '_blank' : undefined} rel="noreferrer" className="listing-card arch ad-card">
+    <a href={href} target={ad?.linkUrl ? '_blank' : undefined} rel="noreferrer" className="listing-card ad-card">
       <div className="thumb">
         {ad?.creativeUrl ? <img src={ad.creativeUrl} alt={ad.brand} /> : <Icon name="star" size={24} />}
       </div>
@@ -587,7 +589,7 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
   return (
     <div className="listing-detail-backdrop" onClick={onClose}>
       <div className="listing-detail" onClick={(e) => e.stopPropagation()}>
-        <div className="listing-detail-head">
+        <div className={`listing-detail-head ${slide === 'photos' ? 'floating' : ''}`}>
           <button className="back-btn" onClick={onClose}><Icon name="close" size={18} /></button>
           <div className="slide-tabs">
             <button className={slide === 'photos' ? 'active' : ''} onClick={() => setSlide('photos')}>Photos</button>
@@ -597,6 +599,14 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
 
         {slide === 'photos' ? (
           <div className="listing-detail-photos">
+            <button
+              type="button"
+              className={`listing-detail-save-btn ${item.savedByMe ? 'saved' : ''}`}
+              aria-label={item.savedByMe ? 'Unsave' : 'Save'}
+              onClick={onToggleSave}
+            >
+              <Icon name="want" size={16} />
+            </button>
             <div
               className="listing-detail-photo-frame"
               onTouchStart={handleSwipeStart}
@@ -674,8 +684,8 @@ function ListingDetailModal({ item, isOwner, buying, boosting, onClose, onBuy, o
 
             <div className="card-actions" style={{ marginTop: 16 }}>
               {!isOwner ? (
-                <button className="btn-outline" disabled={buying} onClick={onBuy}>
-                  {buying ? 'Starting…' : `Buy — ${item.price} EGP`}
+                <button className="btn-solid" disabled={buying} onClick={onBuy}>
+                  <span className="shine" /><span className="label">{buying ? 'Starting…' : `Buy — ${item.price} EGP`}</span>
                 </button>
               ) : (
                 !item.boosted && (

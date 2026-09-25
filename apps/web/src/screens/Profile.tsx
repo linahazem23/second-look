@@ -149,7 +149,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
         ) : (
           <div className="plain-card" key={item.id}>
             <div style={{ display: 'flex', gap: 12 }}>
-              <div className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`} style={{ width: 84, flexShrink: 0 }}>
+              <div className="listing-card" style={{ width: 84, flexShrink: 0 }}>
                 <div className="thumb" style={{ height: 72 }}>
                   {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={20} />}
                 </div>
@@ -184,7 +184,7 @@ export function Profile({ onBack }: { onBack: () => void }) {
       {saved.length === 0 && <div className="empty-state">Nothing saved yet — tap the heart on a listing to save it.</div>}
       <div className="grid">
         {saved.map((item) => (
-          <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`}>
+          <div key={item.id} className="listing-card">
             <div className="thumb">
               {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={20} />}
             </div>

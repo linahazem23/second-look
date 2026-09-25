@@ -57,7 +57,7 @@ export function PublicProfile({ userId, onBack }: { userId: string; onBack: () =
       {activeListings.length === 0 && <div className="empty-state">No active listings right now.</div>}
       <div className="grid">
         {activeListings.map((item) => (
-          <div key={item.id} className={`listing-card ${item.category !== 'Clothes' ? 'arch' : ''}`}>
+          <div key={item.id} className="listing-card">
             <div className="thumb">
               {item.images[0] ? <img src={item.images[0]} alt={item.title} /> : <Icon name={categoryIcon(item.category)} size={20} />}
             </div>
