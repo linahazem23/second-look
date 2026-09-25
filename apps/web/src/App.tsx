@@ -320,20 +320,19 @@ export function App() {
 
       <nav className="bottom-nav">
         <button className={tab === 'home' && !menuView ? 'active' : ''} onClick={() => { setTab('home'); setMenuView(null); }}>
-          <Icon name="home" /><span>Home</span>
+          <span className="nav-icon-wrap"><Icon name="home" /></span><span>Home</span>
         </button>
         <button className={tab === 'want' && !menuView ? 'active' : ''} onClick={() => { setTab('want'); setMenuView(null); }}>
-          <Icon name="want" /><span>Want</span>
+          <span className="nav-icon-wrap"><Icon name="want" /></span><span>Want</span>
         </button>
         <button className={tab === 'reviews' && !menuView ? 'active' : ''} onClick={() => { setTab('reviews'); setMenuView(null); }}>
-          <Icon name="star" /><span>Reviews</span>
+          <span className="nav-icon-wrap"><Icon name="star" /></span><span>Reviews</span>
         </button>
         <button className={tab === 'community' && !menuView ? 'active' : ''} onClick={() => { setTab('community'); setMenuView(null); }}>
-          <Icon name="community" /><span>Community</span>
+          <span className="nav-icon-wrap"><Icon name="community" /></span><span>Community</span>
         </button>
         <button className={tab === 'chat' && !menuView ? 'active' : ''} onClick={() => { setTab('chat'); setMenuView(null); }}>
-          <Icon name="chat" /><span>Chat</span>
-          {hasUnreadChats && <span className="nav-badge" />}
+          <span className="nav-icon-wrap"><Icon name="chat" />{hasUnreadChats && <span className="nav-badge" />}</span><span>Chat</span>
         </button>
       </nav>
 

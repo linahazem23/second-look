@@ -8,6 +8,7 @@ import { LocationAreaField } from '../LocationArea.js';
 import { Toggle } from '../Toggle.js';
 import { Explore } from './Explore.js';
 import { displayName } from '../identity.js';
+import { Avatar } from '../Avatar.js';
 import { maxAllowedPrice } from '../pricing.js';
 
 const CATEGORIES = ['Skincare', 'Haircare', 'Makeup', 'Clothes', 'MomBaby'] as const;
@@ -250,26 +251,33 @@ export function Home({ onOrderCreated, onMessageSeller, onViewProfile, onNeedAut
   return (
     <>
       <p className="home-greeting">{user?.isMother ? 'Hiii Mamasita ✨' : 'Hiii Bestie'}</p>
-      <div className="section-head">
-        <h1>For you</h1>
-        <p>Skincare, makeup, haircare, and clothes from verified sellers</p>
+      <div className="home-header">
+        <div className="section-head">
+          <h1>{user ? `Hi, ${displayName(user)}` : 'For you'}</h1>
+          <p>Skincare, makeup, haircare, and clothes from verified sellers</p>
+        </div>
+        {user && <Avatar user={user} size={44} />}
       </div>
 
       <div className="cat-toggle">
         {['All', ...visibleCategories(CATEGORIES, user?.isMother)].map((c) => (
           <button key={c} className={category === c ? 'active' : ''} onClick={() => setCategory(c)}>
+            {c !== 'All' && <Icon name={categoryIcon(c)} size={14} />}
             {categoryLabel(c)}
           </button>
         ))}
       </div>
 
       <div className="search-row">
-        <input
-          placeholder="Search listings…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && load()}
-        />
+        <div className="search-row-field">
+          <Icon name="search" size={16} />
+          <input
+            placeholder="Search listings…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && load()}
+          />
+        </div>
       </div>
       <div className="filter-chips">
         <button className={`filter-btn ${activeFilterCount > 0 ? 'active' : ''}`} onClick={() => setShowFilters(true)}>
